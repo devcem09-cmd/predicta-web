@@ -6,10 +6,13 @@ from datetime import datetime
 import os
 import time
 from functools import wraps
+
 app = Flask(__name__)
 CORS(app)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 # Nesine headers
 NESINE_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -18,13 +21,17 @@ NESINE_HEADERS = {
     "Origin": "https://www.nesine.com",
     "Accept": "application/json",
 }
+
 NESINE_URL = "https://cdnbulten.nesine.com/api/bulten/getprebultenfull"
+
 # Cache için global değişken
 cached_matches = []
 cache_timestamp = None
 CACHE_DURATION = 300  # 5 dakika
+
 # Rate limiting için basit tracker
 request_tracker = {}
+
 def rate_limit(max_requests=30, window=60):
     """Rate limiting decorator - dakikada 30 istek"""
     def decorator(f):
@@ -54,6 +61,7 @@ def rate_limit(max_requests=30, window=60):
             return f(*args, **kwargs)
         return wrapper
     return decorator
+
 def fetch_nesine_matches(force_refresh=False):
     """Nesine'den maçları çek ve API formatına dönüştür"""
     global cached_matches, cache_timestamp
@@ -133,58 +141,127 @@ def fetch_nesine_matches(force_refresh=False):
             has_ou = False
             has_btts = False
             
+            # Debug için tüm pazar tiplerini topla (sadece ilk maç)
+            debug_markets = []
+            
             # Oranları işle (MA = Market Array)
             for bahis in m.get("MA", []):
                 bahis_tipi = bahis.get("MTID")  # Market Type ID
                 oranlar = bahis.get("OCA", [])  # Odds Choice Array
                 
-                # Maç Sonucu (1, X, 2) - MTID: 1
+                # Debug: İlk maç için tüm pazar tiplerini logla
+                if stats["total_processed"] == 1:
+                    debug_markets.append({
+                        "MTID": bahis_tipi,
+                        "market_name": bahis.get("MN", "Unknown"),
+                        "odds_count": len(oranlar),
+                        "odds": [{"N": o.get("N"), "O": o.get("O")} for o in oranlar[:5]]
+                    })
+                
+                # Maç Sonucu (1, X, 2) - MTID: 1 (N değerine göre ayır)
                 if bahis_tipi == 1 and len(oranlar) >= 3:
                     try:
-                        match_info["odds"]["1"] = float(oranlar[0].get("O", 2.0))
-                        match_info["odds"]["X"] = float(oranlar[1].get("O", 3.2))
-                        match_info["odds"]["2"] = float(oranlar[2].get("O", 3.5))
+                        home_odd = None
+                        draw_odd = None
+                        away_odd = None
+                        
+                        # N değerine göre oranları ayır
+                        for oran in oranlar:
+                            n_value = oran.get("N")
+                            oran_degeri = float(oran.get("O", 0))
+                            
+                            if n_value == 1:  # N=1 → Ev Sahibi (1)
+                                home_odd = oran_degeri
+                            elif n_value == 2:  # N=2 → Beraberlik (X)
+                                draw_odd = oran_degeri
+                            elif n_value == 3:  # N=3 → Deplasman (2)
+                                away_odd = oran_degeri
+                        
+                        # Eğer bulunamadıysa varsayılan
+                        match_info["odds"]["1"] = home_odd or 2.0
+                        match_info["odds"]["X"] = draw_odd or 3.2
+                        match_info["odds"]["2"] = away_odd or 3.5
                         has_ms = True
                     except (ValueError, TypeError, KeyError):
                         pass
                 
-                # Alt/Üst 2.5 - MTID: 5 (Klasik) veya 450 (Yeni/Dinamik)
-                elif (bahis_tipi == 5 or bahis_tipi == 450) and len(oranlar) >= 2:
-                    # MTID 450 genellikle dinamik alt/üst baremleridir (0.5, 1.5, 2.5, 3.5 vs.)
-                    # Bu yüzden isminde "2.5" geçtiğinden emin olmalıyız.
-                    is_valid_ou = True
-                    if bahis_tipi == 450:
-                        market_name = str(market.get("MNA", "")).strip()
-                        # Eğer isimde 2.5 geçmiyorsa, bu muhtemelen başka bir baremdir.
-                        # Boş gelirse (bazı durumlarda), varsayılan olarak kabul edebiliriz ama riskli.
-                        # Güvenli taraf: Sadece "2.5" varsa al.
-                        if "2.5" not in market_name:
-                            is_valid_ou = False
-                    
-                    if is_valid_ou:
-                        try:
-                            # Nesine'de genelde 0. index Üst, 1. index Alt olabilir veya tam tersi.
-                            # Ancak standart API yanıtlarında genelde [0]=Üst, [1]=Alt sırasında gelir.
-                            # Kullanıcı geri bildirimine göre oranlar 2.98 - 13.5 gibi uçuksa yanlış barem çekiliyordur.
-                            
-                            match_info["odds"]["Over/Under +2.5"] = {
-                                "Over +2.5": float(oranlar[0].get("O", 0)),
-                                "Under +2.5": float(oranlar[1].get("O", 0))
-                            }
-                            has_ou = True
-                        except (ValueError, TypeError, KeyError):
-                            pass
-                
-                # Karşılıklı Gol (BTTS) - MTID: 38 (veya 16)
-                elif (bahis_tipi == 38 or bahis_tipi == 16) and len(oranlar) >= 2:
+                # Alt/Üst 2.5 - MTID: 450 (N değerine göre ayır)
+                elif bahis_tipi == 450 and len(oranlar) >= 2:
                     try:
+                        over_odd = None
+                        under_odd = None
+                        
+                        # N değerine göre oranları ayır
+                        for oran in oranlar:
+                            n_value = oran.get("N")
+                            oran_degeri = float(oran.get("O", 0))
+                            
+                            if n_value == 1:  # N=1 → Üst 2.5
+                                over_odd = oran_degeri
+                            elif n_value == 2:  # N=2 → Alt 2.5
+                                under_odd = oran_degeri
+                        
+                        # Eğer bulunamadıysa varsayılan
+                        if over_odd is None or under_odd is None:
+                            logger.warning(f"⚠️ Alt/Üst oranları eksik! Over={over_odd}, Under={under_odd}")
+                            over_odd = over_odd or 1.9
+                            under_odd = under_odd or 1.9
+                        
+                        # Mantık kontrolü (güvenlik için)
+                        if over_odd > 10.0 and under_odd < 3.0:
+                            logger.warning(f"⚠️ Şüpheli oranlar! Over={over_odd}, Under={under_odd}")
+                        
+                        match_info["odds"]["Over/Under +2.5"] = {
+                            "Over +2.5": over_odd,
+                            "Under +2.5": under_odd
+                        }
+                        has_ou = True
+                        
+                        # Debug log - İlk 3 maç için
+                        if stats["total_processed"] <= 3:
+                            logger.info(f"🎯 {match_info['home_team']} vs {match_info['away_team']}")
+                            logger.info(f"   MTID {bahis_tipi}: Over={over_odd} (N=1), Under={under_odd} (N=2)")
+                            
+                    except (ValueError, TypeError, KeyError) as e:
+                        logger.warning(f"⚠️ Alt/Üst oran hatası: {e}")
+                
+                # Karşılıklı Gol (BTTS) - MTID: 38 (N değerine göre ayır)
+                elif bahis_tipi == 38 and len(oranlar) >= 2:
+                    try:
+                        yes_odd = None
+                        no_odd = None
+                        
+                        # N değerine göre oranları ayır
+                        for oran in oranlar:
+                            n_value = oran.get("N")
+                            oran_degeri = float(oran.get("O", 0))
+                            
+                            if n_value == 1:  # N=1 → Var (Yes)
+                                yes_odd = oran_degeri
+                            elif n_value == 2:  # N=2 → Yok (No)
+                                no_odd = oran_degeri
+                        
+                        # Eğer bulunamadıysa varsayılan
+                        if yes_odd is None or no_odd is None:
+                            yes_odd = yes_odd or 1.85
+                            no_odd = no_odd or 1.95
+                        
                         match_info["odds"]["Both Teams To Score"] = {
-                            "Yes": float(oranlar[0].get("O", 1.85)),
-                            "No": float(oranlar[1].get("O", 1.95))
+                            "Yes": yes_odd,
+                            "No": no_odd
                         }
                         has_btts = True
                     except (ValueError, TypeError, KeyError):
                         pass
+            
+            # İlk maç için debug bilgisini logla
+            if stats["total_processed"] == 1 and debug_markets:
+                logger.info(f"📊 İlk maç için bulunan pazar tipleri: {match_info['home_team']} vs {match_info['away_team']}")
+                for dm in debug_markets:
+                    logger.info(f"  MTID {dm['MTID']}: {dm['market_name']} ({dm['odds_count']} oran)")
+                    if dm['MTID'] in [1, 38, 450]:  # Sadece ilgili pazarları detaylandır
+                        for odd in dm['odds']:
+                            logger.info(f"    - N={odd['N']}: {odd['O']}")
             
             # Sadece en az Maç Sonucu oranı olan maçları ekle
             if has_ms:
@@ -239,7 +316,9 @@ def fetch_nesine_matches(force_refresh=False):
             'cache_age': None,
             'error': str(e)
         }
+
 # --- ROUTES ---
+
 @app.route('/')
 def index():
     """Ana sayfayı (HTML) doğrudan dosya olarak sunar."""
@@ -256,6 +335,7 @@ def index():
         return send_file(template_path)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
 @app.route('/api/matches', methods=['GET'])
 @app.route('/api/matches/upcoming', methods=['GET'])
 @rate_limit(max_requests=30, window=60)
@@ -283,9 +363,11 @@ def get_matches():
             "matches": [],
             "count": 0
         }), 500
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "online", "timestamp": datetime.now().isoformat()})
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
     logger.info(f"🚀 PredictaAI API başlatılıyor (Port: {port})...")
