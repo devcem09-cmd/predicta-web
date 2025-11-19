@@ -675,8 +675,8 @@
         let teamStats = {};
         let teamNameIndex = {};
         let clubMappings = {};
+        let manualMappings = {}; // YENİ: Manuel eşleştirmeler
         let apiStatus = 'checking';
-
         // 1. YENİ: Levenshtein Mesafe Algoritması (Harf hatası hesaplama)
         function levenshteinDistance(a, b) {
             if (a.length === 0) return b.length;
@@ -724,34 +724,91 @@
             console.log(`✅ İndeksleme tamamlandı: ${Object.keys(teamNameIndex).length} takım (${Date.now() - start}ms)`);
         }
 
-        // API Durum Kontrolü
-        async function checkAPIStatus() {
-            try {
-                const apiStatusElement = document.getElementById('api-status');
-                const response = await fetchWithTimeout(`${API_BASE_URL}/health`, 5000);
-
-                if (response.ok) {
-                    apiStatus = 'online';
-                    apiStatusElement.innerHTML = '🌐 API: <span style="color: var(--success)">Çalışıyor</span>';
-                    apiStatusElement.classList.add('active');
-                    document.getElementById('fetch-matches-btn').disabled = false;
-                } else {
-                    throw new Error('API not responding');
-                }
-            } catch (error) {
-                apiStatus = 'offline';
-                document.getElementById('api-status').innerHTML = '🌐 API: <span style="color: var(--danger)">Kapalı</span>';
-                document.getElementById('fetch-matches-btn').disabled = true;
+        // 3. YENİ: Gelişmiş Takım Bulma Fonksiyonu
+        function enhancedFindTeamStats(teamName) {
+            if (!teamName) {
+                console.log('Matching failed: empty team name');
+                return null;
             }
-        }
 
-        function fetchWithTimeout(url, timeout = 10000) {
-            return Promise.race([
-                fetch(url),
-                new Promise((_, reject) =>
-                    setTimeout(() => reject(new Error('Timeout')), timeout)
-                )
-            ]);
+            const normalizedInput = normalizeTeamName(teamName);
+            console.log(`🔍 Matching: "${teamName}" -> normalized: "${normalizedInput}"`);
+
+            // 0. Manuel mapping kontrolü (EN ÖNCE)
+            if (manualMappings[teamName.toLowerCase()]) {
+                const mappedTeam = manualMappings[teamName.toLowerCase()];
+                console.log(`✓ Manual mapping: "${teamName}" -> "${mappedTeam}"`);
+                return teamStats[mappedTeam] || null;
+            }
+
+            if (manualMappings[normalizedInput]) {
+                const mappedTeam = manualMappings[normalizedInput];
+                console.log(`✓ Manual mapping (normalized): "${normalizedInput}" -> "${mappedTeam}"`);
+                return teamStats[mappedTeam] || null;
+            }
+
+            // 1. Direkt teamStats match
+            if (teamStats[teamName]) {
+                console.log(`✓ Direct match in teamStats: "${teamName}"`);
+                return teamStats[teamName];
+            }
+
+            // 2. Direct clubMappings match
+            if (clubMappings[teamName]) {
+                const mappedTeam = clubMappings[teamName];
+                console.log(`✓ Direct clubMapping: "${teamName}" -> "${mappedTeam}"`);
+                return teamStats[mappedTeam] || null;
+            }
+
+            // 3. Normalized clubMappings match
+            for (const [key, value] of Object.entries(clubMappings)) {
+                if (normalizeTeamName(key) === normalizedInput) {
+                    console.log(`✓ Normalized clubMapping: "${key}" -> "${value}"`);
+                    return teamStats[value] || null;
+                }
+            }
+
+            // 4. Indexed lookup
+            if (teamNameIndex[normalizedInput]) {
+                const resolvedName = teamNameIndex[normalizedInput];
+                console.log(`✓ Indexed lookup: "${normalizedInput}" -> "${resolvedName}"`);
+                return teamStats[resolvedName] || null;
+            }
+
+            // 5. Fuzzy match (last resort)
+            console.log('⚡ No direct match found, attempting fuzzy match...');
+    
+            const candidates = Object.keys(teamStats).filter(candidate => {
+                const normalizedCandidate = normalizeTeamName(candidate);
+                // Uzunluk farkı en fazla 5 karakter olabilir
+                return Math.abs(normalizedCandidate.length - normalizedInput.length) <= 5;
+            });
+
+            if (candidates.length === 0) {
+                console.log('❌ No suitable candidates for fuzzy matching');
+                return null;
+            }
+
+            let bestMatch = null;
+            let bestScore = 0.70; // Eşik değeri 0.80'den 0.70'e düşürüldü
+
+            for (const candidate of candidates) {
+                const normalizedCandidate = normalizeTeamName(candidate);
+                const similarity = stringSimilarity(normalizedInput, normalizedCandidate);
+        
+                if (similarity > bestScore) {
+                    bestScore = similarity;
+                    bestMatch = candidate;
+                }
+            }
+
+            if (bestMatch) {
+                console.log(`✓ Fuzzy match: "${teamName}" -> "${bestMatch}" (score: ${bestScore.toFixed(3)})`);
+                return teamStats[bestMatch];
+            }
+
+            console.log(`✗ No match found for "${teamName}"`);
+            return null;
         }
 
         // API Uyandırma
@@ -1219,17 +1276,86 @@
             }
 
             console.log(`✅ ${Object.keys(teamStats).length} takımın istatistikleri hesaplandı`);
+            loadManualMappings();
         }
-
+        
+        // Manuel takım eşleştirmelerini yükle
+        function loadManualMappings() {
+            manualMappings = {
+                // Lyon varyasyonları
+                'lyon': 'Olympique Lyon',
+                'ol': 'Olympique Lyon',
+                'olympique lyon': 'Olympique Lyon',
+                'olympique lyonnais': 'Olympique Lyon',
+        
+                // Ajax varyasyonları
+                'ajax': 'AFC Ajax',
+                'ajax amsterdam': 'AFC Ajax',
+                'afc ajax': 'AFC Ajax',
+        
+                // Genk varyasyonları
+                'genk': 'KRC Genk',
+                'racing genk': 'KRC Genk',
+                'krc genk': 'KRC Genk',
+        
+                // PSV varyasyonları
+                'psv': 'PSV Eindhoven',
+                'psv eindhoven': 'PSV Eindhoven',
+        
+                // Türk takımları
+                'galatasaray': 'Galatasaray SK',
+                'gala': 'Galatasaray SK',
+                'fenerbahce': 'Fenerbahçe SK',
+                'fener': 'Fenerbahçe SK',
+                'besiktas': 'Beşiktaş JK',
+        
+                // Diğer yaygın takımlar
+                'barcelona': 'FC Barcelona',
+                'barca': 'FC Barcelona',
+                'real madrid': 'Real Madrid CF',
+                'madrid': 'Real Madrid CF',
+                'bayern': 'Bayern Munich',
+                'bayern munich': 'Bayern Munich',
+                'bayern munchen': 'Bayern Munich',
+        
+                // İngiliz takımları
+                'manchester united': 'Manchester United FC',
+                'man utd': 'Manchester United FC',
+                'man united': 'Manchester United FC',
+                'liverpool': 'Liverpool FC',
+                'chelsea': 'Chelsea FC',
+                'arsenal': 'Arsenal FC',
+                'manchester city': 'Manchester City FC',
+                'man city': 'Manchester City FC',
+        
+                // İtalyan takımları
+                'juventus': 'Juventus FC',
+                'juve': 'Juventus FC',
+                'inter': 'Inter Milan',
+                'inter milan': 'Inter Milan',
+                'ac milan': 'AC Milan',
+                'milan': 'AC Milan',
+        
+                // Danimarka takımları
+                'hobro': 'Hobro IK',
+                'hvidovre': 'Hvidovre IF',
+                'fc copenhagen': 'FC København',
+                'copenhagen': 'FC København',
+                'brondby': 'Brøndby IF'
+            };
+    
+            console.log(`✅ ${Object.keys(manualMappings).length} manuel eşleştirme yüklendi`);
+        }
         function normalizeTeamName(name) {
             if (!name) return '';
             return name
                 .toLowerCase()
+                .trim()
                 .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/[-_.]/g, ' ')
                 .replace(/\s+/g, ' ')
-                .replace(/[.-]/g, ' ')
-                .replace(/'/g, '')
-                .replace(/\b(fc|sk|sc|as|fk|bk|jk|tk|cf|cd|ud|ac|ca|ec|rc|club|atletico|sporting|real|deportivo)\b/gi, '')
+                // Sadece en yaygın ve anlamı olmayan ekleri kaldır
+                .replace(/\b(fc|sc|afc)\b/gi, '')
                 .replace(/\s+/g, ' ')
                 .trim();
         }
@@ -2420,5 +2546,4 @@
         });
     </script>
 </body>
-
 </html>
