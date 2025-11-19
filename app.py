@@ -148,16 +148,32 @@ def fetch_nesine_matches(force_refresh=False):
                     except (ValueError, TypeError, KeyError):
                         pass
                 
-                # Alt/Üst 2.5 - MTID: 450 (veya 5)
-                elif (bahis_tipi == 450 or bahis_tipi == 5) and len(oranlar) >= 2:
-                    try:
-                        match_info["odds"]["Over/Under +2.5"] = {
-                            "Over +2.5": float(oranlar[0].get("O", 1.9)),
-                            "Under +2.5": float(oranlar[1].get("O", 1.9))
-                        }
-                        has_ou = True
-                    except (ValueError, TypeError, KeyError):
-                        pass
+                # Alt/Üst 2.5 - MTID: 5 (Klasik) veya 450 (Yeni/Dinamik)
+                elif (bahis_tipi == 5 or bahis_tipi == 450) and len(oranlar) >= 2:
+                    # MTID 450 genellikle dinamik alt/üst baremleridir (0.5, 1.5, 2.5, 3.5 vs.)
+                    # Bu yüzden isminde "2.5" geçtiğinden emin olmalıyız.
+                    is_valid_ou = True
+                    if bahis_tipi == 450:
+                        market_name = str(market.get("MNA", "")).strip()
+                        # Eğer isimde 2.5 geçmiyorsa, bu muhtemelen başka bir baremdir.
+                        # Boş gelirse (bazı durumlarda), varsayılan olarak kabul edebiliriz ama riskli.
+                        # Güvenli taraf: Sadece "2.5" varsa al.
+                        if "2.5" not in market_name:
+                            is_valid_ou = False
+                    
+                    if is_valid_ou:
+                        try:
+                            # Nesine'de genelde 0. index Üst, 1. index Alt olabilir veya tam tersi.
+                            # Ancak standart API yanıtlarında genelde [0]=Üst, [1]=Alt sırasında gelir.
+                            # Kullanıcı geri bildirimine göre oranlar 2.98 - 13.5 gibi uçuksa yanlış barem çekiliyordur.
+                            
+                            match_info["odds"]["Over/Under +2.5"] = {
+                                "Over +2.5": float(oranlar[0].get("O", 0)),
+                                "Under +2.5": float(oranlar[1].get("O", 0))
+                            }
+                            has_ou = True
+                        except (ValueError, TypeError, KeyError):
+                            pass
                 
                 # Karşılıklı Gol (BTTS) - MTID: 38 (veya 16)
                 elif (bahis_tipi == 38 or bahis_tipi == 16) and len(oranlar) >= 2:
