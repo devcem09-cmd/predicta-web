@@ -586,36 +586,10 @@
                         } else {
                             throw new Error('Veri formatı geçersiz');
                         }
-                    } catch (error) {
-                        showError(`Veri çekilemedi: ${error.message}. Backend bağlantısını kontrol edin.`);
-                    }
-                }
-                // Oranları İşle (Backend formatına göre)
-                function extractOdds(match) {
-                    const odds = match.odds || {};
-                    // Backend'den gelen yapı: { "1": ..., "X": ..., "2": ..., "Over 2.5": ..., "Yes": ... }
-                    return {
-                        '1': odds['1'] || '-',
-                        'X': odds['X'] || '-',
-                        '2': odds['2'] || '-',
-                        'Over/Under +2.5': {
-                            'Over +2.5': odds['Over 2.5'] || '-',
-                            'Under +2.5': odds['Under 2.5'] || '-'
-                        },
-                        'Both Teams To Score': {
-                            'Yes': odds['Yes'] || '-',
-                            'No': odds['No'] || '-'
-                        }
-                    };
-                }
-                function displayMatches(matches) {
-                    const container = document.getElementById('match-container');
-                    if (matches.length === 0) {
-                        container.innerHTML = `
-                <div class="premium-alert warning">
-                    Henüz maç yüklenmedi. "Maçları Yükle" butonuna tıklayın.
-                </div>
-                `;
+                        <div class="premium-alert warning">
+                            Henüz maç yüklenmedi. "Maçları Yükle" butonuna tıklayın.
+                        </div>
+                        `;
                         return;
                     }
                     container.innerHTML = '';
@@ -637,7 +611,7 @@
                         dateStr = dateObj.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' });
                     } catch (e) { }
                     card.innerHTML = `
-            <div class="match-header">
+                            < div class="match-header" >
                 <div class="team-info">
                     <div class="match-teams">
                         ${match.home_team}<span class="vs-separator">VS</span>${match.away_team}
@@ -679,8 +653,8 @@
                     </div>
                     ` : ''}
                 </div>
-            </div>
-            `;
+            </div >
+                            `;
                     return card;
                 }
                 // Basit Tahmin
@@ -717,16 +691,16 @@
                 function showLoading(msg) {
                     const container = document.getElementById('match-container');
                     if (container) {
-                        container.innerHTML = `<div class="premium-loading">
+                        container.innerHTML = `< div class="premium-loading" >
                     <div class="loading-spinner"></div>
                     <div class="loading-text">${msg}</div>
-                </div>`;
+                </div > `;
                     }
                 }
                 function showError(msg) {
                     const container = document.getElementById('match-container');
                     if (container) {
-                        container.innerHTML = `<div class="premium-alert" style="border-color: var(--danger); color: var(--danger)">❌ ${msg}</div>`;
+                        container.innerHTML = `< div class="premium-alert" style = "border-color: var(--danger); color: var(--danger)" >❌ ${ msg }</div >`;
                     }
                 }
                 function showSuccess(msg) {
