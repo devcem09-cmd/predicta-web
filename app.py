@@ -38,23 +38,6 @@ class MatchPredictor:
         self.avg_away_goals = 1.2
         self.load_database()
 
-    def fix_encoding(self, text):
-        """Bozuk karakterleri (Mojibake) Türkçeye çevirir."""
-        if not isinstance(text, str): return text
-        
-        # Karakter Haritası (Bozuk -> Düzgün)
-        replacements = {
-            'Ä°': 'İ', 'Ã‡': 'Ç', 'Ã–': 'Ö', 'Ãœ': 'Ü', 'Åž': 'Ş', 'Ä±': 'ı',
-            'Ã§': 'ç', 'Ã¶': 'ö', 'Ã¼': 'ü', 'ÅŸ': 'ş', 'ÄŸ': 'ğ', 'Ã': 'Ğ',
-            'SÃœPER': 'SÜPER', 'LÄ°G': 'LİG', 'NORVEÃ‡': 'NORVEÇ', 
-            'Ä°SVEÃ‡': 'İSVEÇ', 'SERÃ°E': 'SERIE', 'PORTEKÄ°Z': 'PORTEKİZ',
-            'BELÃ‡Ä°KA': 'BELÇİKA', 'HOLLANDA': 'HOLLANDA'
-        }
-        
-        for bad, good in replacements.items():
-            text = text.replace(bad, good)
-        return text.strip()
-
     def load_database(self):
         logger.info(f"📂 Veritabanı yükleniyor: {CSV_PATH}")
         
@@ -63,75 +46,26 @@ class MatchPredictor:
             return
 
         try:
-            # CSV'yi olduğu gibi oku (Encoding hatası varsa görmezden gelip biz düzelteceğiz)
-            # header=0 diyerek ilk satırı başlık kabul ediyoruz
-            self.df = pd.read_csv(CSV_PATH, encoding='utf-8', on_bad_lines='skip', dtype=str)
+            self.df = pd.read_csv(CSV_PATH, encoding='utf-8', on_bad_lines='skip')
             
-            logger.info(f"📥 Ham veri okundu. Sütunlar: {list(self.df.columns)}")
-
-            # Sütun İsimlerini Standartlaştır (Senin dosyanın başlıklarına göre)
-            # Resme göre başlıklar: odds_2, date, time, home_team...
+            # Sütun temizliği
+            self.df.columns = [c.lower().strip().replace(' ', '_').replace('hometeam', 'home_team').replace('awayteam', 'away_team').replace('fthg', 'home_score').replace('ftag', 'away_score') for c in self.df.columns]
             
-            # Gerekli sütunları bulalım veya indeksle alalım
-            # Senin resimdeki yapıya göre mapping:
-            # home_team -> 'home_team'
-            # away_team -> 'away_team'
-            # home_score -> 'home_score'
-            # away_score -> 'away_score' (Başlıkta away_score önce gelebiliyor, dikkat)
-            
-            required_map = {
-                'home_team': 'home_team',
-                'away_team': 'away_team',
-                'home_score': 'home_score', 
-                'away_score': 'away_score'
-            }
-            
-            # Yeni bir DataFrame oluşturacağız
-            clean_df = pd.DataFrame()
-            
-            for csv_col, standard_name in required_map.items():
-                if csv_col in self.df.columns:
-                    clean_df[standard_name] = self.df[csv_col]
-                else:
-                    logger.warning(f"⚠️ Sütun bulunamadı: {csv_col}")
-
-            # Eğer DataFrame boşsa veya sütunlar eksikse manuel indeksle deneyelim (Fallback)
-            if clean_df.empty or 'home_team' not in clean_df.columns:
-                logger.warning("⚠️ Başlıklar uyuşmadı, indeks bazlı okuma deneniyor...")
-                # Resimdeki yapıya göre tahmin: 
-                # 3: Home Team, 12: Away Team, 8: Away Score?, 9: Home Score?
-                # (Burası senin CSV'nin tam yapısına göre değişebilir, resme göre ayarladım)
-                clean_df['home_team'] = self.df.iloc[:, 3]
-                clean_df['away_team'] = self.df.iloc[:, 12]
-                clean_df['home_score'] = self.df.iloc[:, 9] # Resimde 9. index gibi duruyor
-                clean_df['away_score'] = self.df.iloc[:, 8]
-
-            # 1. İsimleri Temizle (Encoding Fix)
-            clean_df['home_team'] = clean_df['home_team'].apply(self.fix_encoding)
-            clean_df['away_team'] = clean_df['away_team'].apply(self.fix_encoding)
-
-            # 2. Skorları Temizle
-            # "0.0" stringini integer 0'a çevir
+            # Skor temizliği
             for col in ['home_score', 'away_score']:
-                clean_df[col] = pd.to_numeric(clean_df[col], errors='coerce').fillna(0).astype(int)
-
-            # 3. Gelecek Tarihli / Oynanmamış Maçları Filtrele
-            # Eğer skorlar 0-0 ise ve bu maç oynanmamışsa istatistiği bozar.
-            # Ama senin elinde sadece bu veri varsa mecburen kullanacağız.
-            # Normalde: clean_df = clean_df[clean_df['result'].notna()] 
+                if col in self.df.columns:
+                    self.df[col] = pd.to_numeric(self.df[col], errors='coerce').fillna(0).astype(int)
             
-            self.df = clean_df
-            
-            # İstatistikleri tekrar hesapla
             self._calculate_stats()
-            logger.info(f"✅ DB Temizlendi ve Yüklendi: {len(self.df)} satır.")
+            logger.info(f"✅ DB Yüklendi: {len(self.df)} satır, {len(self.team_stats)} takım.")
             
         except Exception as e:
-            logger.error(f"❌ DB İşleme Hatası: {e}")
+            logger.error(f"❌ DB Hatası: {e}")
 
     def _calculate_stats(self):
         if self.df is None or self.df.empty: return
         
+        # Lig ortalamalarını hesapla
         if 'home_score' in self.df.columns:
             self.avg_home_goals = self.df['home_score'].mean() or 1.5
             self.avg_away_goals = self.df['away_score'].mean() or 1.2
@@ -153,38 +87,25 @@ class MatchPredictor:
             h_g = len(h_matches)
             a_g = len(a_matches)
             
+            # Atak/Defans Güçleri (En az 3 maç yapmış olmalı)
             att_h = (h_matches['home_score'].sum() / h_g / self.avg_home_goals) if h_g > 3 else 1.0
             def_h = (h_matches['away_score'].sum() / h_g / self.avg_away_goals) if h_g > 3 else 1.0
             att_a = (a_matches['away_score'].sum() / a_g / self.avg_away_goals) if a_g > 3 else 1.0
             def_a = (a_matches['home_score'].sum() / a_g / self.avg_home_goals) if a_g > 3 else 1.0
             
-            form = []
-            recent = pd.concat([h_matches, a_matches]).sort_index().tail(5)
-            for _, r in recent.iterrows():
-                try:
-                    hs, as_ = r['home_score'], r['away_score']
-                    is_h = r[h_col] == team
-                    if hs > as_: res = 'W' if is_h else 'L'
-                    elif hs < as_: res = 'L' if is_h else 'W'
-                    else: res = 'D'
-                    form.append(res)
-                except: continue
-                
             stats[team] = {
                 'att_h': att_h, 'def_h': def_h,
-                'att_a': att_a, 'def_a': def_a,
-                'form': "".join(form)
+                'att_a': att_a, 'def_a': def_a
             }
         self.team_stats = stats
 
     def normalize_name(self, name):
-        """Takım isimlerini standartlaştırır (Man. City -> Manchester City)"""
+        """İsimleri standartlaştırır (Man City -> Manchester City)"""
         if not name: return ""
         n = name.lower().strip()
-        n = n.replace('.', '') # Noktaları sil (Man. -> Man)
+        n = n.replace('.', '')
         n = n.replace('-', ' ') 
         
-        # Özel değişimler (Man City sorununu çözen kısım)
         replacements = {
             'man city': 'manchester city',
             'man united': 'manchester united',
@@ -196,42 +117,30 @@ class MatchPredictor:
         }
         
         for k, v in replacements.items():
-            if k in n:
-                n = n.replace(k, v)
-        
+            if k in n: n = n.replace(k, v)
         return n
 
     def find_team(self, name):
         if not name or not self.team_stats: return None
-        
-        # Cache kontrolü
         if name in self.team_names_map: return self.team_names_map[name]
         
-        # Normalizasyon yap
         clean_name = self.normalize_name(name)
         db_teams = list(self.team_stats.keys())
         
-        # Rapidfuzz ile ara (token_set_ratio kelime sırasına takılmaz)
-        # Man City -> Manchester City eşleşmesi için token_set daha iyidir
         match = process.extractOne(
             clean_name, 
             db_teams, 
             scorer=fuzz.token_set_ratio, 
-            processor=utils.default_process,
             score_cutoff=60
         )
         
         if match:
-            found_name = match[0]
-            score = match[1]
-            logger.info(f"🔗 MATCH: {name} ({clean_name}) -> {found_name} (Skor: {score})")
-            self.team_names_map[name] = found_name
-            return found_name
-        else:
-            logger.warning(f"🚫 NO MATCH: {name} ({clean_name})")
-            return None
+            self.team_names_map[name] = match[0]
+            return match[0]
+        return None
 
     def predict(self, home, away):
+        """Gelişmiş Poisson Tahmini (BTTS Dahil)"""
         home_db = self.find_team(home)
         away_db = self.find_team(away)
         
@@ -240,26 +149,58 @@ class MatchPredictor:
         hs = self.team_stats.get(home_db)
         as_ = self.team_stats.get(away_db)
         
+        # xG Hesaplama
         h_xg = hs['att_h'] * as_['def_a'] * self.avg_home_goals
         a_xg = as_['att_a'] * hs['def_h'] * self.avg_away_goals
         
-        h_p = [poisson.pmf(i, h_xg) for i in range(6)]
-        a_p = [poisson.pmf(i, a_xg) for i in range(6)]
+        # Poisson Olasılıkları (0'dan 5 gole kadar)
+        h_probs = [poisson.pmf(i, h_xg) for i in range(6)]
+        a_probs = [poisson.pmf(i, a_xg) for i in range(6)]
         
-        p1, px, p2, po = 0, 0, 0, 0
+        # Olasılıkları Topla
+        prob_1, prob_x, prob_2 = 0, 0, 0
+        prob_over = 0 # 2.5 Üst
+        
         for h in range(6):
             for a in range(6):
-                prob = h_p[h] * a_p[a]
-                if h > a: p1 += prob
-                elif h == a: px += prob
-                else: p2 += prob
-                if (h+a) > 2.5: po += prob
+                p = h_probs[h] * a_probs[a]
                 
+                # MS
+                if h > a: prob_1 += p
+                elif h == a: prob_x += p
+                else: prob_2 += p
+                
+                # Alt/Üst
+                if (h + a) > 2.5: prob_over += p
+        
+        # 2.5 Alt Hesabı
+        prob_under = 1 - prob_over
+
+        # KG Var (BTTS) Hesabı
+        # P(Ev Gol Atar) = 1 - P(Ev 0 Gol)
+        prob_home_score = 1 - poisson.pmf(0, h_xg)
+        # P(Dep Gol Atar) = 1 - P(Dep 0 Gol)
+        prob_away_score = 1 - poisson.pmf(0, a_xg)
+        
+        prob_btts_yes = prob_home_score * prob_away_score
+        prob_btts_no = 1 - prob_btts_yes
+
         return {
             "home_team_db": home_db,
             "away_team_db": away_db,
-            "stats": {"home_xg": round(h_xg, 2), "away_xg": round(a_xg, 2)},
-            "probs": {"1": round(p1*100,1), "X": round(px*100,1), "2": round(p2*100,1), "over": round(po*100,1)}
+            "stats": {
+                "home_xg": round(h_xg, 2), 
+                "away_xg": round(a_xg, 2)
+            },
+            "probs": {
+                "1": round(prob_1 * 100, 1),
+                "X": round(prob_x * 100, 1),
+                "2": round(prob_2 * 100, 1),
+                "over": round(prob_over * 100, 1),
+                "under": round(prob_under * 100, 1),
+                "btts_yes": round(prob_btts_yes * 100, 1),
+                "btts_no": round(prob_btts_no * 100, 1)
+            }
         }
 
 predictor = MatchPredictor()
@@ -280,11 +221,12 @@ def live():
                 
                 odds = {}
                 has_ms = False
+                
                 for market in m.get("MA", []):
                     mtid = market.get("MTID")
                     oca = market.get("OCA", [])
                     
-                    # MS
+                    # MS (1, X, 2)
                     if mtid == 1:
                         for o in oca:
                             if o.get("N") == 1: odds["1"] = o.get("O")
@@ -292,14 +234,14 @@ def live():
                             elif o.get("N") == 3: odds["2"] = o.get("O")
                         if "1" in odds: has_ms = True
                             
-                    # Alt/Üst
+                    # Alt/Üst 2.5 (İsim kontrolü ile garantiye alalım)
                     elif mtid == 450 or "2.5" in str(market.get("MN", "")):
                         if "Over/Under +2.5" not in odds: odds["Over/Under +2.5"] = {}
                         for o in oca:
                             if o.get("N") == 1: odds["Over/Under +2.5"]["Over +2.5"] = o.get("O")
                             if o.get("N") == 2: odds["Over/Under +2.5"]["Under +2.5"] = o.get("O")
 
-                    # KG Var/Yok (MTID 38)
+                    # KG Var/Yok
                     elif mtid == 38:
                         if "Both Teams To Score" not in odds: odds["Both Teams To Score"] = {}
                         for o in oca:
@@ -307,10 +249,10 @@ def live():
                             if o.get("N") == 2: odds["Both Teams To Score"]["No"] = o.get("O")
 
                 if has_ms:
-                    # Lig İsmi Fix (Null hatasını çözer)
+                    # Lig İsmi Düzeltme
                     league = m.get("LN")
                     if not league or str(league).lower() == "null" or league == "":
-                        league = str(m.get("LID", "Lig Belirsiz"))
+                        league = str(m.get("LID", "Lig ID Yok"))
 
                     matches.append({
                         "id": str(m.get("C")),
@@ -329,4 +271,3 @@ def live():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
-
