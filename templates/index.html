@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Predicta PRO - AI Analiz Paneli</title>
+    <!-- Favicon ayarı (logo.jpg olarak güncellendi) -->
+    <link rel="icon" type="image/jpeg" href="/static/logo.jpg"> 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
 
@@ -25,31 +27,60 @@
 
         /* Header */
         .header {
-            background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(10px);
+            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px);
             position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border);
-            padding: 15px;
+            padding: 10px 15px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
         }
-        .header-inner { max-width: 1200px; margin: 0 auto; }
-        .logo { font-size: 20px; font-weight: 800; color: var(--primary); margin-bottom: 15px; display: block; }
+        .header-inner { 
+            max-width: 1200px; margin: 0 auto; 
+            display: flex; align-items: center; justify-content: space-between; gap: 15px;
+        }
+
+        /* LOGO AYARLARI */
+        .logo-container {
+            display: flex; align-items: center; gap: 10px;
+        }
+        .logo-img {
+            height: 50px; /* Logo yüksekliği */
+            width: auto;
+            border-radius: 50%; /* Yuvarlak görünüm */
+            filter: drop-shadow(0 0 5px rgba(102, 126, 234, 0.5)); 
+            transition: transform 0.3s ease;
+        }
+        .logo-img:hover {
+            transform: scale(1.1);
+            filter: drop-shadow(0 0 10px rgba(255, 193, 7, 0.6));
+        }
         
         /* Filtreler */
         .filters {
-            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px;
-            scrollbar-width: none; /* Firefox */
+            display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px;
+            align-items: center;
+            scrollbar-width: none; 
         }
-        .filters::-webkit-scrollbar { display: none; /* Chrome */ }
+        .filters::-webkit-scrollbar { display: none; }
 
         select, .btn-refresh {
-            background: var(--dark); color: var(--text); border: 1px solid var(--border);
-            padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
-            cursor: pointer; white-space: nowrap; outline: none;
+            background: var(--dark-card); color: var(--text); border: 1px solid var(--border);
+            padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 600;
+            cursor: pointer; white-space: nowrap; outline: none; transition: all 0.2s;
         }
-        select:focus { border-color: var(--primary); }
+        select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(255,193,7,0.2); }
         
         .btn-refresh {
-            background: var(--primary); color: #000; border: none; margin-left: auto;
+            background: linear-gradient(135deg, var(--primary), #e0a800); 
+            color: #000; border: none; font-weight: 800;
+            box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3);
         }
         .btn-refresh:active { transform: scale(0.95); }
+        
+        /* Mobil Düzenleme */
+        @media (max-width: 768px) {
+            .header-inner { flex-direction: column; align-items: stretch; }
+            .logo-container { justify-content: center; margin-bottom: 10px; }
+            .filters { justify-content: center; }
+        }
 
         /* Container */
         .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
@@ -58,64 +89,63 @@
         .card {
             background: var(--dark-card); border-radius: 12px; border: 1px solid var(--border);
             margin-bottom: 20px; overflow: hidden; position: relative;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
         }
         
-        /* Kart Üstü (Takımlar) */
         .card-header { padding: 15px; display: grid; grid-template-columns: 1fr; gap: 15px; }
         @media (min-width: 768px) { .card-header { grid-template-columns: 1.5fr 1fr; } }
 
-        .teams { font-size: 16px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-        .vs { color: var(--primary); font-size: 12px; font-weight: 800; }
+        .teams { font-size: 16px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+        .vs { color: var(--primary); font-size: 12px; font-weight: 800; padding: 0 5px; }
         
         .meta { display: flex; gap: 8px; font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
-        .badge { background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; }
+        .badge { background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); }
 
         .xg-box {
-            background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;
-            font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;
+            background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;
+            font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;
+            border-left: 3px solid var(--secondary);
         }
-        .xg-val { color: var(--primary); font-weight: 700; }
+        .xg-val { color: var(--primary); font-weight: 700; font-size: 13px; }
 
-        /* Analiz Paneli (Sağ Taraf) */
-        .analysis { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; }
-        .analysis-title { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+        /* Analiz Paneli */
+        .analysis { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; }
+        .analysis-title { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; }
 
-        /* Progress Bars */
-        .bar-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; }
-        .bar-label { width: 50px; font-weight: 600; }
-        .bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin: 0 8px; overflow: hidden; }
-        .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
-        .bar-val { width: 35px; text-align: right; font-weight: 700; }
+        .bar-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 11px; }
+        .bar-label { width: 60px; font-weight: 600; }
+        .bar-track { flex: 1; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; margin: 0 10px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        .bar-val { width: 35px; text-align: right; font-weight: 700; color: #fff; }
 
         /* Oranlar Grid'i */
         .odds-grid {
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 15px;
-            border-top: 1px solid var(--border); background: rgba(0,0,0,0.1);
+            border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);
         }
         @media (min-width: 600px) { .odds-grid { grid-template-columns: repeat(6, 1fr); } }
 
         .odd-box {
-            background: var(--dark); border: 1px solid var(--border); border-radius: 6px;
-            padding: 8px 4px; text-align: center; position: relative; transition: all 0.3s;
+            background: var(--dark); border: 1px solid var(--border); border-radius: 8px;
+            padding: 10px 5px; text-align: center; position: relative; transition: all 0.3s;
         }
 
-        .odd-label { font-size: 9px; color: var(--text-muted); margin-bottom: 2px; }
-        .odd-val { font-size: 13px; font-weight: 700; color: var(--text); }
+        .odd-label { font-size: 9px; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; }
+        .odd-val { font-size: 14px; font-weight: 800; color: var(--text); }
         
-        /* VURGULAMA EFEKTLERİ (HIGHLIGHT) */
+        /* GOLD GLOW (Vurgulama) */
         .gold-glow {
-            background: linear-gradient(145deg, #ffc107, #ff9800);
+            background: linear-gradient(135deg, #ffc107, #ff9800);
             border-color: #ffd54f;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 20px rgba(255, 193, 7, 0.4);
+            z-index: 2;
         }
-        .gold-glow .odd-label { color: rgba(0,0,0,0.7); font-weight: 800; }
+        .gold-glow .odd-label { color: rgba(0,0,0,0.7); font-weight: 900; }
         .gold-glow .odd-val { color: #000; }
 
-        /* Loading & Error */
         .state-msg { text-align: center; padding: 60px 20px; color: var(--text-muted); }
-        .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        .spinner { width: 35px; height: 35px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 15px; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
     </style>
@@ -124,7 +154,11 @@
 
     <div class="header">
         <div class="header-inner">
-            <div class="logo">PREDICTA PRO 🤖</div>
+            <!-- LOGO ALANI GÜNCELLENDİ (logo.jpg) -->
+            <div class="logo-container">
+                <img src="/static/logo.jpg" alt="Predicta AI" class="logo-img">
+            </div>
+
             <div class="filters">
                 <select id="sort-select" onchange="renderApp()">
                     <option value="date">⏰ Saate Göre</option>
@@ -135,13 +169,13 @@
                 </select>
                 
                 <select id="conf-filter" onchange="renderApp()">
-                    <option value="0">Tüm Maçlar</option>
-                    <option value="50">En Az %50 Güven</option>
-                    <option value="60">En Az %60 Güven</option>
-                    <option value="70">En Az %70 Güven</option>
+                    <option value="0">Tümü</option>
+                    <option value="50">%50+</option>
+                    <option value="60">%60+</option>
+                    <option value="70">%70+</option>
                 </select>
 
-                <button class="btn-refresh" onclick="initApp()">Yenile</button>
+                <button class="btn-refresh" onclick="initApp()">YENİLE</button>
             </div>
         </div>
     </div>
@@ -154,7 +188,6 @@
         const API_URL = '/api/matches/live';
         let matchesData = [];
 
-        // Sayfa Yüklendiğinde
         document.addEventListener('DOMContentLoaded', initApp);
 
         async function initApp() {
@@ -173,9 +206,9 @@
             } catch (err) {
                 container.innerHTML = `
                     <div class="state-msg">
-                        <div style="color:var(--danger); font-size:20px; margin-bottom:10px;">⚠️</div>
-                        <div>Hata: ${err.message}</div>
-                        <button class="btn-refresh" onclick="initApp()" style="margin-top:15px;">Tekrar Dene</button>
+                        <div style="color:var(--danger); font-size:24px; margin-bottom:10px;">⚡</div>
+                        <div>Bağlantı Hatası: ${err.message}</div>
+                        <button class="btn-refresh" onclick="initApp()" style="margin-top:20px; width:auto;">Tekrar Dene</button>
                     </div>
                 `;
             }
@@ -192,7 +225,6 @@
             filtered = filtered.filter(m => {
                 if (!m.prediction) return false;
                 const p = m.prediction.probs;
-                // En yüksek olasılığı bul
                 const maxP = Math.max(p['1'], p['2'], p.over, p.under, p.btts_yes, p.btts_no);
                 return maxP >= minConf;
             });
@@ -212,7 +244,6 @@
                 }
             });
 
-            // Render
             if (filtered.length === 0) {
                 container.innerHTML = '<div class="state-msg">Filtrelere uygun maç bulunamadı.</div>';
                 return;
@@ -223,21 +254,20 @@
 
         function createMatchCard(match) {
             const pred = match.prediction;
-            if (!pred) return ''; // Tahmin yoksa gösterme (isteğe bağlı)
+            if (!pred) return '';
 
             const probs = pred.probs;
             const stats = pred.stats;
             const odds = match.odds;
 
-            // Vurgulanacak Kutuları Belirle
+            // Vurgulamalar
             const is1 = probs['1'] > probs['X'] && probs['1'] > probs['2'];
             const is2 = probs['2'] > probs['1'] && probs['2'] > probs['X'];
             const isOver = probs.over > probs.under;
             const isUnder = probs.under > probs.over;
             const isBttsYes = probs.btts_yes > probs.btts_no;
-            const isBttsNo = probs.btts_no > probs.btts_yes;
 
-            // Oranları güvenli al
+            // Oranları Güvenli Al
             const odd1 = odds['1'] || '-';
             const oddX = odds['X'] || '-';
             const odd2 = odds['2'] || '-';
@@ -248,24 +278,25 @@
             return `
                 <div class="card">
                     <div class="card-header">
-                        <!-- Sol: Takım Bilgileri -->
                         <div>
-                            <div class="teams">${match.home} <span class="vs">vs</span> ${match.away}</div>
+                            <div class="teams">${match.home} <span class="vs">VS</span> ${match.away}</div>
                             <div class="meta">
                                 <span class="badge">🏆 ${match.league}</span>
                                 <span class="badge">⏰ ${match.date}</span>
                             </div>
                             <div class="xg-box">
-                                <div>Gol Beklentisi (xG)</div>
+                                <div>⚡ xG (Gol Beklentisi)</div>
                                 <div>
                                     <span class="xg-val">${stats.home_xg}</span> - <span class="xg-val">${stats.away_xg}</span>
                                 </div>
                             </div>
                         </div>
 
-                        <!-- Sağ: Analiz Barları -->
                         <div class="analysis">
-                            <div class="analysis-title">Yapay Zeka Olasılıkları</div>
+                            <div class="analysis-title">
+                                <span>Yapay Zeka Analizi</span>
+                                <span style="color:var(--success)">Online ●</span>
+                            </div>
                             ${createBar('MS 1', probs['1'], 'var(--success)')}
                             ${createBar('MS 2', probs['2'], 'var(--danger)')}
                             ${createBar('2.5 ÜST', probs.over, 'var(--primary)')}
@@ -273,7 +304,6 @@
                         </div>
                     </div>
 
-                    <!-- Alt: Oranlar Grid -->
                     <div class="odds-grid">
                         <div class="odd-box ${is1 ? 'gold-glow' : ''}">
                             <div class="odd-label">MS 1 (%${probs['1'].toFixed(0)})</div>
