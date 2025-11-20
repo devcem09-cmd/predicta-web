@@ -11,12 +11,14 @@ import requests
 from scipy.stats import poisson
 from rapidfuzz import process, fuzz, utils
 
-# --- AYARLAR ---
+# --- AYARLAR (DÜZELTİLMİŞ HALİ) ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, 'data', 'final_unified_dataset.csv')
 TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
+STATIC_DIR = os.path.join(BASE_DIR, 'static') # <--- BU SATIRI EKLE
 
-app = Flask(__name__, template_folder=TEMPLATE_DIR)
+# static_folder parametresini buraya ekliyoruz:
+app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 CORS(app)
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - [%(module)s] - %(message)s')
@@ -46,18 +48,42 @@ class MatchPredictor:
             return
 
         try:
+            # OPTİMİZASYON: Sadece gerekli sütunları oku ve veri tiplerini küçült
+            # int64 yerine int32 kullanarak RAM'den %50 tasarruf ederiz
+            
+            # Önce sadece başlıkları oku
+            preview = pd.read_csv(CSV_PATH, nrows=1)
+            cols = [c.lower().strip().replace(' ', '_').replace('hometeam', 'home_team').replace('awayteam', 'away_team').replace('fthg', 'home_score').replace('ftag', 'away_score') for c in preview.columns]
+            
+            # Hangi sütunlar bizim için önemli?
+            # Orijinal dosyadaki sütun indekslerini veya isimlerini kullanmalıyız ama
+            # Pandas'ın akıllı okumasını kullanalım.
+            
             self.df = pd.read_csv(CSV_PATH, encoding='utf-8', on_bad_lines='skip')
             
             # Sütun temizliği
             self.df.columns = [c.lower().strip().replace(' ', '_').replace('hometeam', 'home_team').replace('awayteam', 'away_team').replace('fthg', 'home_score').replace('ftag', 'away_score') for c in self.df.columns]
             
-            # Skor temizliği
-            for col in ['home_score', 'away_score']:
-                if col in self.df.columns:
-                    self.df[col] = pd.to_numeric(self.df[col], errors='coerce').fillna(0).astype(int)
+            # Gereksiz sütunları RAM'den at (Garbage Collection)
+            required_cols = ['home_team', 'away_team', 'home_score', 'away_score']
+            self.df = self.df[required_cols] # Sadece bunları tut, diğerlerini sil!
             
+            # Veri tiplerini sıkıştır (Downcast)
+            for col in ['home_score', 'away_score']:
+                self.df[col] = pd.to_numeric(self.df[col], errors='coerce').fillna(0).astype('int32') # int64 -> int32
+                
+            # Takım isimlerini 'category' yap (String'den çok daha az yer kaplar)
+            self.df['home_team'] = self.df['home_team'].astype('string')
+            self.df['away_team'] = self.df['away_team'].astype('string')
+
             self._calculate_stats()
-            logger.info(f"✅ DB Yüklendi: {len(self.df)} satır, {len(self.team_stats)} takım.")
+            
+            # İşimiz bitince DF'yi silebiliriz çünkü self.team_stats hesaplandı
+            # Bu satır RAM'i anında boşaltır!
+            del self.df 
+            self.df = None 
+            
+            logger.info(f"✅ DB Yüklendi ve RAM Temizlendi. {len(self.team_stats)} takım hafızada.")
             
         except Exception as e:
             logger.error(f"❌ DB Hatası: {e}")
@@ -271,3 +297,4 @@ def live():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+
