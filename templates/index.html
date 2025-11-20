@@ -1,17 +1,17 @@
+code
+Html
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Predicta PRO - AI Analiz Paneli</title>
-    <!-- Favicon ayarı (logo.jpg olarak güncellendi) -->
     <link rel="icon" type="image/jpeg" href="/static/logo.jpg"> 
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
 
         :root {
             --primary: #ffc107;
-            --primary-hover: #ffca2c;
             --secondary: #667eea;
             --success: #10b981;
             --danger: #ef4444;
@@ -37,59 +37,39 @@
             display: flex; align-items: center; justify-content: space-between; gap: 15px;
         }
 
-        /* LOGO AYARLARI */
-        .logo-container {
-            display: flex; align-items: center; gap: 10px;
-        }
-        .logo-img {
-            height: 50px; /* Logo yüksekliği */
-            width: auto;
-            border-radius: 50%; /* Yuvarlak görünüm */
-            filter: drop-shadow(0 0 5px rgba(102, 126, 234, 0.5)); 
-            transition: transform 0.3s ease;
-        }
-        .logo-img:hover {
-            transform: scale(1.1);
-            filter: drop-shadow(0 0 10px rgba(255, 193, 7, 0.6));
-        }
+        .logo-container { display: flex; align-items: center; gap: 10px; }
+        .logo-img { height: 50px; width: auto; border-radius: 50%; filter: drop-shadow(0 0 5px rgba(102, 126, 234, 0.5)); }
         
         /* Filtreler */
         .filters {
-            display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px;
-            align-items: center;
-            scrollbar-width: none; 
+            display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; align-items: center; scrollbar-width: none; 
         }
         .filters::-webkit-scrollbar { display: none; }
 
         select, .btn-refresh {
             background: var(--dark-card); color: var(--text); border: 1px solid var(--border);
             padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 600;
-            cursor: pointer; white-space: nowrap; outline: none; transition: all 0.2s;
+            cursor: pointer; white-space: nowrap; outline: none;
         }
-        select:focus { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(255,193,7,0.2); }
+        select:focus { border-color: var(--primary); }
         
-        .btn-refresh {
-            background: linear-gradient(135deg, var(--primary), #e0a800); 
-            color: #000; border: none; font-weight: 800;
-            box-shadow: 0 4px 10px rgba(255, 193, 7, 0.3);
-        }
-        .btn-refresh:active { transform: scale(0.95); }
-        
-        /* Mobil Düzenleme */
+        .btn-refresh { background: var(--primary); color: #000; border: none; font-weight: 800; }
+
+        /* Mobil Düzen */
         @media (max-width: 768px) {
             .header-inner { flex-direction: column; align-items: stretch; }
             .logo-container { justify-content: center; margin-bottom: 10px; }
-            .filters { justify-content: center; }
+            .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+            .btn-refresh { grid-column: span 2; }
         }
 
         /* Container */
         .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
 
-        /* Maç Kartı */
+        /* Kart */
         .card {
             background: var(--dark-card); border-radius: 12px; border: 1px solid var(--border);
             margin-bottom: 20px; overflow: hidden; position: relative;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
         }
         
         .card-header { padding: 15px; display: grid; grid-template-columns: 1fr; gap: 15px; }
@@ -97,7 +77,6 @@
 
         .teams { font-size: 16px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
         .vs { color: var(--primary); font-size: 12px; font-weight: 800; padding: 0 5px; }
-        
         .meta { display: flex; gap: 8px; font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
         .badge { background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); }
 
@@ -110,15 +89,13 @@
 
         /* Analiz Paneli */
         .analysis { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; }
-        .analysis-title { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; display: flex; justify-content: space-between; }
-
-        .bar-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 11px; }
+        .bar-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; }
         .bar-label { width: 60px; font-weight: 600; }
-        .bar-track { flex: 1; height: 8px; background: rgba(255,255,255,0.08); border-radius: 4px; margin: 0 10px; overflow: hidden; }
-        .bar-fill { height: 100%; border-radius: 4px; transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1); }
+        .bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 4px; margin: 0 10px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 4px; }
         .bar-val { width: 35px; text-align: right; font-weight: 700; color: #fff; }
 
-        /* Oranlar Grid'i */
+        /* Oranlar */
         .odds-grid {
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 15px;
             border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);
@@ -129,17 +106,13 @@
             background: var(--dark); border: 1px solid var(--border); border-radius: 8px;
             padding: 10px 5px; text-align: center; position: relative; transition: all 0.3s;
         }
-
         .odd-label { font-size: 9px; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; }
         .odd-val { font-size: 14px; font-weight: 800; color: var(--text); }
         
-        /* GOLD GLOW (Vurgulama) */
+        /* Gold Glow */
         .gold-glow {
-            background: linear-gradient(135deg, #ffc107, #ff9800);
-            border-color: #ffd54f;
-            transform: translateY(-3px);
-            box-shadow: 0 5px 20px rgba(255, 193, 7, 0.4);
-            z-index: 2;
+            background: linear-gradient(135deg, #ffc107, #ff9800); border-color: #ffd54f;
+            transform: translateY(-3px); box-shadow: 0 5px 20px rgba(255, 193, 7, 0.4); z-index: 2;
         }
         .gold-glow .odd-label { color: rgba(0,0,0,0.7); font-weight: 900; }
         .gold-glow .odd-val { color: #000; }
@@ -147,29 +120,32 @@
         .state-msg { text-align: center; padding: 60px 20px; color: var(--text-muted); }
         .spinner { width: 35px; height: 35px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 15px; }
         @keyframes spin { to { transform: rotate(360deg); } }
-
     </style>
 </head>
 <body>
 
     <div class="header">
         <div class="header-inner">
-            <!-- LOGO ALANI GÜNCELLENDİ (logo.jpg) -->
             <div class="logo-container">
                 <img src="/static/logo.jpg" alt="Predicta AI" class="logo-img">
             </div>
 
             <div class="filters">
+                <!-- GELİŞMİŞ SIRALAMA FİLTRESİ -->
                 <select id="sort-select" onchange="renderApp()">
-                    <option value="date">⏰ Saate Göre</option>
-                    <option value="conf_1">🏠 MS 1 Güven</option>
-                    <option value="conf_2">✈️ MS 2 Güven</option>
-                    <option value="conf_over">⚽ Üst Güven</option>
-                    <option value="conf_btts">🤝 KG Var Güven</option>
+                    <option value="date">⏰ Saat</option>
+                    <option value="conf_1">🏠 MS 1</option>
+                    <option value="conf_x">⚖️ MS 0 (Ber)</option> <!-- YENİ -->
+                    <option value="conf_2">✈️ MS 2</option>
+                    <option value="conf_over">⚽ ÜST</option>
+                    <option value="conf_under">📉 ALT</option> <!-- YENİ -->
+                    <option value="conf_btts_yes">🤝 KG VAR</option>
+                    <option value="conf_btts_no">⛔ KG YOK</option> <!-- YENİ -->
                 </select>
                 
                 <select id="conf-filter" onchange="renderApp()">
                     <option value="0">Tümü</option>
+                    <option value="40">%40+</option> <!-- Beraberlik için düşük sınır gerekli -->
                     <option value="50">%50+</option>
                     <option value="60">%60+</option>
                     <option value="70">%70+</option>
@@ -180,9 +156,7 @@
         </div>
     </div>
 
-    <div class="container" id="app-container">
-        <!-- İçerik JS ile gelecek -->
-    </div>
+    <div class="container" id="app-container"></div>
 
     <script>
         const API_URL = '/api/matches/live';
@@ -192,25 +166,16 @@
 
         async function initApp() {
             const container = document.getElementById('app-container');
-            container.innerHTML = '<div class="state-msg"><div class="spinner"></div><div>Veriler Çekiliyor ve Analiz Ediliyor...</div></div>';
+            container.innerHTML = '<div class="state-msg"><div class="spinner"></div><div>Analiz Yapılıyor...</div></div>';
 
             try {
                 const res = await fetch(API_URL);
                 const data = await res.json();
-
                 if (!data.success) throw new Error(data.error || 'API Hatası');
-                
                 matchesData = data.matches;
                 renderApp();
-
             } catch (err) {
-                container.innerHTML = `
-                    <div class="state-msg">
-                        <div style="color:var(--danger); font-size:24px; margin-bottom:10px;">⚡</div>
-                        <div>Bağlantı Hatası: ${err.message}</div>
-                        <button class="btn-refresh" onclick="initApp()" style="margin-top:20px; width:auto;">Tekrar Dene</button>
-                    </div>
-                `;
+                container.innerHTML = `<div class="state-msg"><div>Hata: ${err.message}</div><button class="btn-refresh" onclick="initApp()" style="margin-top:20px; width:auto;">Tekrar Dene</button></div>`;
             }
         }
 
@@ -225,11 +190,12 @@
             filtered = filtered.filter(m => {
                 if (!m.prediction) return false;
                 const p = m.prediction.probs;
-                const maxP = Math.max(p['1'], p['2'], p.over, p.under, p.btts_yes, p.btts_no);
+                // En yüksek herhangi bir ihtimali filtre sınırından büyük olanları getir
+                const maxP = Math.max(p['1'], p['X'], p['2'], p.over, p.under, p.btts_yes, p.btts_no);
                 return maxP >= minConf;
             });
 
-            // Sıralama
+            // GELİŞMİŞ SIRALAMA MANTIĞI
             filtered.sort((a, b) => {
                 const pa = a.prediction?.probs;
                 const pb = b.prediction?.probs;
@@ -237,18 +203,20 @@
 
                 switch(sortType) {
                     case 'conf_1': return pb['1'] - pa['1'];
+                    case 'conf_x': return pb['X'] - pa['X']; // Beraberlik Sıralaması
                     case 'conf_2': return pb['2'] - pa['2'];
                     case 'conf_over': return pb.over - pa.over;
-                    case 'conf_btts': return pb.btts_yes - pa.btts_yes;
+                    case 'conf_under': return pb.under - pa.under; // Alt Sıralaması
+                    case 'conf_btts_yes': return pb.btts_yes - pa.btts_yes;
+                    case 'conf_btts_no': return pb.btts_no - pa.btts_no; // KG Yok Sıralaması
                     case 'date': default: return a.date.localeCompare(b.date);
                 }
             });
 
             if (filtered.length === 0) {
-                container.innerHTML = '<div class="state-msg">Filtrelere uygun maç bulunamadı.</div>';
+                container.innerHTML = '<div class="state-msg">Kriterlere uygun maç bulunamadı.</div>';
                 return;
             }
-
             container.innerHTML = filtered.map(match => createMatchCard(match)).join('');
         }
 
@@ -260,20 +228,27 @@
             const stats = pred.stats;
             const odds = match.odds;
 
-            // Vurgulamalar
+            // VURGULAMA MANTIĞI (Sarı Yanması İçin)
+            // Artık sadece "En Yüksek" değil, belli bir eşiği geçenler de parlayabilir
+            // Ama şimdilik "Kendi kategorisinin kazananı"nı parlatalım
             const is1 = probs['1'] > probs['X'] && probs['1'] > probs['2'];
+            const isX = probs['X'] > probs['1'] && probs['X'] > probs['2']; // Beraberlik Vurgusu
             const is2 = probs['2'] > probs['1'] && probs['2'] > probs['X'];
+            
             const isOver = probs.over > probs.under;
-            const isUnder = probs.under > probs.over;
+            const isUnder = probs.under > probs.over; // Alt Vurgusu
+            
             const isBttsYes = probs.btts_yes > probs.btts_no;
+            const isBttsNo = probs.btts_no > probs.btts_yes; // KG Yok Vurgusu
 
-            // Oranları Güvenli Al
+            // Oranlar
             const odd1 = odds['1'] || '-';
             const oddX = odds['X'] || '-';
             const odd2 = odds['2'] || '-';
             const oddOver = odds['Over/Under +2.5']?.['Over +2.5'] || '-';
             const oddUnder = odds['Over/Under +2.5']?.['Under +2.5'] || '-';
             const oddKgVar = odds['Both Teams To Score']?.['Yes'] || '-';
+            const oddKgYok = odds['Both Teams To Score']?.['No'] || '-'; // Eğer Nesine veriyorsa
 
             return `
                 <div class="card">
@@ -286,30 +261,23 @@
                             </div>
                             <div class="xg-box">
                                 <div>⚡ xG (Gol Beklentisi)</div>
-                                <div>
-                                    <span class="xg-val">${stats.home_xg}</span> - <span class="xg-val">${stats.away_xg}</span>
-                                </div>
+                                <div><span class="xg-val">${stats.home_xg}</span> - <span class="xg-val">${stats.away_xg}</span></div>
                             </div>
                         </div>
-
                         <div class="analysis">
-                            <div class="analysis-title">
-                                <span>Yapay Zeka Analizi</span>
-                                <span style="color:var(--success)">Online ●</span>
-                            </div>
+                            <div class="analysis-title"><span>Yapay Zeka Analizi</span><span style="color:var(--success)">Online ●</span></div>
                             ${createBar('MS 1', probs['1'], 'var(--success)')}
+                            ${createBar('MS 0', probs['X'], 'var(--text-muted)')}
                             ${createBar('MS 2', probs['2'], 'var(--danger)')}
                             ${createBar('2.5 ÜST', probs.over, 'var(--primary)')}
-                            ${createBar('KG VAR', probs.btts_yes, 'var(--secondary)')}
                         </div>
                     </div>
-
                     <div class="odds-grid">
                         <div class="odd-box ${is1 ? 'gold-glow' : ''}">
                             <div class="odd-label">MS 1 (%${probs['1'].toFixed(0)})</div>
                             <div class="odd-val">${odd1}</div>
                         </div>
-                        <div class="odd-box">
+                        <div class="odd-box ${isX ? 'gold-glow' : ''}">
                             <div class="odd-label">BER (%${probs['X'].toFixed(0)})</div>
                             <div class="odd-val">${oddX}</div>
                         </div>
@@ -335,15 +303,8 @@
         }
 
         function createBar(label, val, color) {
-            return `
-                <div class="bar-row">
-                    <div class="bar-label">${label}</div>
-                    <div class="bar-track"><div class="bar-fill" style="width:${val}%; background:${color}"></div></div>
-                    <div class="bar-val">%${val.toFixed(0)}</div>
-                </div>
-            `;
+            return `<div class="bar-row"><div class="bar-label">${label}</div><div class="bar-track"><div class="bar-fill" style="width:${val}%; background:${color}"></div></div><div class="bar-val">%${val.toFixed(0)}</div></div>`;
         }
     </script>
-
 </body>
 </html>
