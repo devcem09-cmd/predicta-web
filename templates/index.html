@@ -821,11 +821,14 @@
                 </div>
                 
                 <!-- Nesine Oranları -->
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: center;">
-                    <div class="odd-item">1: ${match.odds['1'] || '-'}</div>
-                    <div class="odd-item">X: ${match.odds['X'] || '-'}</div>
-                    <div class="odd-item">2: ${match.odds['2'] || '-'}</div>
-                    ${match.odds['Over/Under +2.5'] ? `<div class="odd-item">2.5 Üst: ${match.odds['Over/Under +2.5']['Over +2.5']}</div>` : ''}
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <div class="odd-item">MS 1: <span style="color:var(--text);">${match.odds['1'] || '-'}</span></div>
+                    <div class="odd-item">MS X: <span style="color:var(--text);">${match.odds['X'] || '-'}</span></div>
+                    <div class="odd-item">MS 2: <span style="color:var(--text);">${match.odds['2'] || '-'}</span></div>
+    
+                    ${(match.odds['Over/Under +2.5'] && match.odds['Over/Under +2.5']['Over +2.5']) ? 
+        `                <div class="odd-item" style="border-color: var(--primary);">2.5 Üst: <span style="color:var(--primary); font-weight:bold;">${match.odds['Over/Under +2.5']['Over +2.5']}</span></div>` 
+                        : ''}
                 </div>
             `;
 
