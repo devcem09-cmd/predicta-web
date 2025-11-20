@@ -169,50 +169,89 @@ def index(): return render_template('index.html')
 @app.route('/api/matches/live')
 def live():
     try:
+        # Nesine'ye istek at
         r = requests.get(NESINE_URL, headers=NESINE_HEADERS, timeout=15)
+        if r.status_code != 200:
+            raise Exception(f"Nesine Bağlantı Hatası: {r.status_code}")
+            
         d = r.json()
         matches = []
         
+        # Senin HTML kodundaki mantığın aynısı:
         if "sg" in d and "EA" in d["sg"]:
             for m in d["sg"]["EA"]:
+                # Sadece Bülten (GT=1)
                 if m.get("GT") != 1: continue
                 
                 odds = {}
-                for market in m.get("MA", []):
-                    # MS (1, X, 2)
-                    if market.get("MTID") == 1:
-                        for o in market.get("OCA", []):
-                            if o.get("N") == 1: odds["1"] = o.get("O")
-                            if o.get("N") == 2: odds["X"] = o.get("O")
-                            if o.get("N") == 3: odds["2"] = o.get("O")
-                    
-                    # Alt/Üst 2.5 (MTID 450)
-                    # Bazen Nesine farklı ID kullanabilir, bu yüzden isme de bakalım
-                    if market.get("MTID") == 450 or "2.5" in str(market.get("MN", "")):
-                        if "Over/Under +2.5" not in odds: odds["Over/Under +2.5"] = {}
-                        for o in market.get("OCA", []):
-                            if o.get("N") == 1: odds["Over/Under +2.5"]["Over +2.5"] = o.get("O")
-                            if o.get("N") == 2: odds["Over/Under +2.5"]["Under +2.5"] = o.get("O")
+                has_ms = False
                 
-                if "1" in odds:
-                    # Lig ismini güvenli al
+                # Market Array (MA) döngüsü - Senin mantığın birebir çevrildi
+                for market in m.get("MA", []):
+                    mtid = market.get("MTID") # Market ID
+                    oca = market.get("OCA", []) # Oranlar
+                    
+                    # 1. MAÇ SONUCU (MTID: 1)
+                    if mtid == 1:
+                        for o in oca:
+                            n = o.get("N")
+                            val = o.get("O")
+                            if n == 1: odds["1"] = val
+                            elif n == 2: odds["X"] = val
+                            elif n == 3: odds["2"] = val
+                        if "1" in odds: has_ms = True
+
+                    # 2. ALT/ÜST 2.5 (MTID: 450)
+                    elif mtid == 450:
+                        if "Over/Under +2.5" not in odds:
+                            odds["Over/Under +2.5"] = {}
+                        for o in oca:
+                            n = o.get("N")
+                            val = o.get("O")
+                            # Senin HTML mantığın: N=1 -> Üst, N=2 -> Alt
+                            if n == 1: odds["Over/Under +2.5"]["Over +2.5"] = val
+                            elif n == 2: odds["Over/Under +2.5"]["Under +2.5"] = val
+
+                    # 3. KG VAR/YOK (MTID: 38)
+                    elif mtid == 38:
+                        if "Both Teams To Score" not in odds:
+                            odds["Both Teams To Score"] = {}
+                        for o in oca:
+                            n = o.get("N")
+                            val = o.get("O")
+                            # Senin HTML mantığın: N=1 -> Var, N=2 -> Yok
+                            if n == 1: odds["Both Teams To Score"]["Yes"] = val
+                            elif n == 2: odds["Both Teams To Score"]["No"] = val
+
+                # Eğer Maç Sonucu oranı yoksa listeye ekleme (Boş maçları ele)
+                if has_ms:
+                    # Lig ismi yoksa ID'yi koy, null olmasın
                     league = m.get("LN")
-                    if not league: league = str(m.get("LID", "Unknown League"))
+                    if not league or league == "":
+                        league = str(m.get("LID", ""))
+
+                    # Takım İsimleri
+                    home = m.get("HN")
+                    away = m.get("AN")
+
+                    # Tahmin Yap
+                    pred = predictor.predict(home, away)
 
                     matches.append({
                         "id": str(m.get("C")),
-                        "home": m.get("HN"),
-                        "away": m.get("AN"),
+                        "home": home,
+                        "away": away,
                         "date": f"{m.get('D')} {m.get('T')}",
                         "league": league,
                         "odds": odds,
-                        "prediction": predictor.predict(m.get("HN"), m.get("AN"))
+                        "prediction": pred
                     })
         
         return jsonify({"success": True, "count": len(matches), "matches": matches})
+        
     except Exception as e:
         logger.error(f"API Error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
-
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
+
