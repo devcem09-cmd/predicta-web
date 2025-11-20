@@ -9,7 +9,7 @@ from flask import Flask, jsonify, render_template
 from flask_cors import CORS
 import requests
 from scipy.stats import poisson
-from rapidfuzz import process, fuzz
+from rapidfuzz import process, fuzz, utils
 
 # --- AYARLAR ---
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -47,10 +47,10 @@ class MatchPredictor:
 
         try:
             self.df = pd.read_csv(CSV_PATH, encoding='utf-8', on_bad_lines='skip')
-            # Sütunları temizle
+            # Sütun temizliği
             self.df.columns = [c.lower().strip().replace(' ', '_').replace('hometeam', 'home_team').replace('awayteam', 'away_team').replace('fthg', 'home_score').replace('ftag', 'away_score') for c in self.df.columns]
             
-            # Skorları düzelt
+            # Skor temizliği
             for col in ['home_score', 'away_score']:
                 if col in self.df.columns:
                     self.df[col] = pd.to_numeric(self.df[col], errors='coerce').fillna(0).astype(int)
@@ -69,20 +69,16 @@ class MatchPredictor:
             self.avg_away_goals = self.df['away_score'].mean() or 1.2
         
         stats = {}
-        # Takım listesini oluştur (Sütun isimlerini kontrol et)
         h_col = 'home_team' if 'home_team' in self.df.columns else 'home'
         a_col = 'away_team' if 'away_team' in self.df.columns else 'away'
         
-        if h_col not in self.df.columns:
-            logger.error(f"❌ CSV'de takım sütunları bulunamadı. Mevcut sütunlar: {self.df.columns}")
-            return
+        if h_col not in self.df.columns: return
 
         teams = set(self.df[h_col].unique()) | set(self.df[a_col].unique())
         
         for team in teams:
             if pd.isna(team) or str(team).strip() == '': continue
             
-            # İstatistikleri hesapla
             h_matches = self.df[self.df[h_col] == team]
             a_matches = self.df[self.df[a_col] == team]
             
@@ -94,7 +90,6 @@ class MatchPredictor:
             att_a = (a_matches['away_score'].sum() / a_g / self.avg_away_goals) if a_g > 3 else 1.0
             def_a = (a_matches['home_score'].sum() / a_g / self.avg_home_goals) if a_g > 3 else 1.0
             
-            # Form hesabı
             form = []
             recent = pd.concat([h_matches, a_matches]).sort_index().tail(5)
             for _, r in recent.iterrows():
@@ -114,20 +109,58 @@ class MatchPredictor:
             }
         self.team_stats = stats
 
+    def normalize_name(self, name):
+        """Takım isimlerini standartlaştırır (Man. City -> Manchester City)"""
+        if not name: return ""
+        n = name.lower().strip()
+        n = n.replace('.', '') # Noktaları sil (Man. -> Man)
+        n = n.replace('-', ' ') 
+        
+        # Özel değişimler (Man City sorununu çözen kısım)
+        replacements = {
+            'man city': 'manchester city',
+            'man united': 'manchester united',
+            'man utd': 'manchester united',
+            'utd': 'united',
+            'qpr': 'queens park rangers',
+            'wolves': 'wolverhampton',
+            "n'castle": "newcastle"
+        }
+        
+        for k, v in replacements.items():
+            if k in n:
+                n = n.replace(k, v)
+        
+        return n
+
     def find_team(self, name):
         if not name or not self.team_stats: return None
+        
+        # Cache kontrolü
         if name in self.team_names_map: return self.team_names_map[name]
         
-        # Rapidfuzz ile ara (Eşik değeri 60'a düşürdük - daha toleranslı)
-        match = process.extractOne(name, self.team_stats.keys(), scorer=fuzz.token_sort_ratio, score_cutoff=60)
+        # Normalizasyon yap
+        clean_name = self.normalize_name(name)
+        db_teams = list(self.team_stats.keys())
+        
+        # Rapidfuzz ile ara (token_set_ratio kelime sırasına takılmaz)
+        # Man City -> Manchester City eşleşmesi için token_set daha iyidir
+        match = process.extractOne(
+            clean_name, 
+            db_teams, 
+            scorer=fuzz.token_set_ratio, 
+            processor=utils.default_process,
+            score_cutoff=60
+        )
         
         if match:
-            # Log'a bas ki neyle eşleştiğini görelim
-            logger.info(f"🔗 MATCH: {name} -> {match[0]} (Skor: {match[1]})")
-            self.team_names_map[name] = match[0]
-            return match[0]
+            found_name = match[0]
+            score = match[1]
+            logger.info(f"🔗 MATCH: {name} ({clean_name}) -> {found_name} (Skor: {score})")
+            self.team_names_map[name] = found_name
+            return found_name
         else:
-            logger.warning(f"🚫 NO MATCH: {name} için veritabanında eşleşme bulunamadı.")
+            logger.warning(f"🚫 NO MATCH: {name} ({clean_name})")
             return None
 
     def predict(self, home, away):
@@ -169,89 +202,62 @@ def index(): return render_template('index.html')
 @app.route('/api/matches/live')
 def live():
     try:
-        # Nesine'ye istek at
         r = requests.get(NESINE_URL, headers=NESINE_HEADERS, timeout=15)
-        if r.status_code != 200:
-            raise Exception(f"Nesine Bağlantı Hatası: {r.status_code}")
-            
         d = r.json()
         matches = []
         
-        # Senin HTML kodundaki mantığın aynısı:
         if "sg" in d and "EA" in d["sg"]:
             for m in d["sg"]["EA"]:
-                # Sadece Bülten (GT=1)
                 if m.get("GT") != 1: continue
                 
                 odds = {}
                 has_ms = False
-                
-                # Market Array (MA) döngüsü - Senin mantığın birebir çevrildi
                 for market in m.get("MA", []):
-                    mtid = market.get("MTID") # Market ID
-                    oca = market.get("OCA", []) # Oranlar
+                    mtid = market.get("MTID")
+                    oca = market.get("OCA", [])
                     
-                    # 1. MAÇ SONUCU (MTID: 1)
+                    # MS
                     if mtid == 1:
                         for o in oca:
-                            n = o.get("N")
-                            val = o.get("O")
-                            if n == 1: odds["1"] = val
-                            elif n == 2: odds["X"] = val
-                            elif n == 3: odds["2"] = val
+                            if o.get("N") == 1: odds["1"] = o.get("O")
+                            elif o.get("N") == 2: odds["X"] = o.get("O")
+                            elif o.get("N") == 3: odds["2"] = o.get("O")
                         if "1" in odds: has_ms = True
-
-                    # 2. ALT/ÜST 2.5 (MTID: 450)
-                    elif mtid == 450:
-                        if "Over/Under +2.5" not in odds:
-                            odds["Over/Under +2.5"] = {}
+                            
+                    # Alt/Üst
+                    elif mtid == 450 or "2.5" in str(market.get("MN", "")):
+                        if "Over/Under +2.5" not in odds: odds["Over/Under +2.5"] = {}
                         for o in oca:
-                            n = o.get("N")
-                            val = o.get("O")
-                            # Senin HTML mantığın: N=1 -> Üst, N=2 -> Alt
-                            if n == 1: odds["Over/Under +2.5"]["Over +2.5"] = val
-                            elif n == 2: odds["Over/Under +2.5"]["Under +2.5"] = val
+                            if o.get("N") == 1: odds["Over/Under +2.5"]["Over +2.5"] = o.get("O")
+                            if o.get("N") == 2: odds["Over/Under +2.5"]["Under +2.5"] = o.get("O")
 
-                    # 3. KG VAR/YOK (MTID: 38)
+                    # KG Var/Yok (MTID 38)
                     elif mtid == 38:
-                        if "Both Teams To Score" not in odds:
-                            odds["Both Teams To Score"] = {}
+                        if "Both Teams To Score" not in odds: odds["Both Teams To Score"] = {}
                         for o in oca:
-                            n = o.get("N")
-                            val = o.get("O")
-                            # Senin HTML mantığın: N=1 -> Var, N=2 -> Yok
-                            if n == 1: odds["Both Teams To Score"]["Yes"] = val
-                            elif n == 2: odds["Both Teams To Score"]["No"] = val
+                            if o.get("N") == 1: odds["Both Teams To Score"]["Yes"] = o.get("O")
+                            if o.get("N") == 2: odds["Both Teams To Score"]["No"] = o.get("O")
 
-                # Eğer Maç Sonucu oranı yoksa listeye ekleme (Boş maçları ele)
                 if has_ms:
-                    # Lig ismi yoksa ID'yi koy, null olmasın
+                    # Lig İsmi Fix (Null hatasını çözer)
                     league = m.get("LN")
-                    if not league or league == "":
-                        league = str(m.get("LID", ""))
-
-                    # Takım İsimleri
-                    home = m.get("HN")
-                    away = m.get("AN")
-
-                    # Tahmin Yap
-                    pred = predictor.predict(home, away)
+                    if not league or str(league).lower() == "null" or league == "":
+                        league = str(m.get("LID", "Lig Belirsiz"))
 
                     matches.append({
                         "id": str(m.get("C")),
-                        "home": home,
-                        "away": away,
+                        "home": m.get("HN"),
+                        "away": m.get("AN"),
                         "date": f"{m.get('D')} {m.get('T')}",
                         "league": league,
                         "odds": odds,
-                        "prediction": pred
+                        "prediction": predictor.predict(m.get("HN"), m.get("AN"))
                     })
         
         return jsonify({"success": True, "count": len(matches), "matches": matches})
-        
     except Exception as e:
         logger.error(f"API Error: {e}")
         return jsonify({"success": False, "error": str(e)}), 500
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get("PORT", 10000)))
-
