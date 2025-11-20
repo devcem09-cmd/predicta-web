@@ -1,852 +1,319 @@
 <!DOCTYPE html>
 <html lang="tr">
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PredictAAI - Gelişmiş Analiz Motoru</title>
+    <title>Predicta PRO - AI Analiz Paneli</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
 
         :root {
             --primary: #ffc107;
-            --primary-dark: #ff9800;
+            --primary-hover: #ffca2c;
             --secondary: #667eea;
             --success: #10b981;
             --danger: #ef4444;
-            --dark: #0a0e27;
-            --dark-light: #1a1f3a;
-            --dark-lighter: #2a2f4a;
-            --text: #ffffff;
-            --text-muted: rgba(255, 255, 255, 0.6);
-            --border: rgba(255, 193, 7, 0.1);
-            --glow: rgba(255, 193, 7, 0.3);
+            --dark: #0f172a;
+            --dark-card: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: rgba(255, 255, 255, 0.1);
         }
 
-        body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: var(--dark);
-            color: var(--text);
-            min-height: 100vh;
-            overflow-x: hidden;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; background: var(--dark); color: var(--text); padding-bottom: 50px; }
+
+        /* Header */
+        .header {
+            background: rgba(30, 41, 59, 0.9); backdrop-filter: blur(10px);
+            position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border);
+            padding: 15px;
+        }
+        .header-inner { max-width: 1200px; margin: 0 auto; }
+        .logo { font-size: 20px; font-weight: 800; color: var(--primary); margin-bottom: 15px; display: block; }
+        
+        /* Filtreler */
+        .filters {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 5px;
+            scrollbar-width: none; /* Firefox */
+        }
+        .filters::-webkit-scrollbar { display: none; /* Chrome */ }
+
+        select, .btn-refresh {
+            background: var(--dark); color: var(--text); border: 1px solid var(--border);
+            padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+            cursor: pointer; white-space: nowrap; outline: none;
+        }
+        select:focus { border-color: var(--primary); }
+        
+        .btn-refresh {
+            background: var(--primary); color: #000; border: none; margin-left: auto;
+        }
+        .btn-refresh:active { transform: scale(0.95); }
+
+        /* Container */
+        .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
+
+        /* Maç Kartı */
+        .card {
+            background: var(--dark-card); border-radius: 12px; border: 1px solid var(--border);
+            margin-bottom: 20px; overflow: hidden; position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        /* Kart Üstü (Takımlar) */
+        .card-header { padding: 15px; display: grid; grid-template-columns: 1fr; gap: 15px; }
+        @media (min-width: 768px) { .card-header { grid-template-columns: 1.5fr 1fr; } }
+
+        .teams { font-size: 16px; font-weight: 700; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+        .vs { color: var(--primary); font-size: 12px; font-weight: 800; }
+        
+        .meta { display: flex; gap: 8px; font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
+        .badge { background: rgba(255,255,255,0.05); padding: 2px 6px; border-radius: 4px; }
+
+        .xg-box {
+            background: rgba(0,0,0,0.3); padding: 8px; border-radius: 6px;
+            font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between;
+        }
+        .xg-val { color: var(--primary); font-weight: 700; }
+
+        /* Analiz Paneli (Sağ Taraf) */
+        .analysis { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 10px; }
+        .analysis-title { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* Progress Bars */
+        .bar-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; }
+        .bar-label { width: 50px; font-weight: 600; }
+        .bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.1); border-radius: 3px; margin: 0 8px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease; }
+        .bar-val { width: 35px; text-align: right; font-weight: 700; }
+
+        /* Oranlar Grid'i */
+        .odds-grid {
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 15px;
+            border-top: 1px solid var(--border); background: rgba(0,0,0,0.1);
+        }
+        @media (min-width: 600px) { .odds-grid { grid-template-columns: repeat(6, 1fr); } }
+
+        .odd-box {
+            background: var(--dark); border: 1px solid var(--border); border-radius: 6px;
+            padding: 8px 4px; text-align: center; position: relative; transition: all 0.3s;
         }
 
-        .animated-bg {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0;
-            background:
-                radial-gradient(ellipse at 10% 20%, rgba(102, 126, 234, 0.15) 0%, transparent 50%),
-                radial-gradient(ellipse at 90% 80%, rgba(255, 193, 7, 0.1) 0%, transparent 50%);
-            animation: bgPulse 20s ease-in-out infinite;
-        }
-
-        @keyframes bgPulse {
-
-            0%,
-            100% {
-                opacity: 1;
-            }
-
-            50% {
-                opacity: 0.8;
-            }
-        }
-
-        .main-wrapper {
-            position: relative;
-            z-index: 1;
-        }
-
-        .premium-header {
-            background: linear-gradient(135deg, rgba(10, 14, 39, 0.95), rgba(26, 31, 58, 0.95));
-            backdrop-filter: blur(20px);
-            border-bottom: 1px solid var(--border);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-            position: sticky;
-            top: 0;
-            z-index: 100;
-        }
-
-        .header-top {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 15px 30px;
-            border-bottom: 1px solid var(--border);
-        }
-
-        .status-group {
-            display: flex;
-            gap: 12px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .status-pill {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: rgba(26, 31, 58, 0.8);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .status-pill.active {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
-            border-color: var(--success);
-            color: var(--success);
-        }
-
-        .logo-section {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 20px;
-            padding: 25px 30px;
-        }
-
-        .logo-orb {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 30%, var(--secondary), var(--primary-dark));
-            border: 3px solid var(--primary);
-            box-shadow: 0 0 40px var(--glow);
-            animation: float 3s ease-in-out infinite;
-        }
-
-        @keyframes float {
-
-            0%,
-            100% {
-                transform: translateY(0px);
-            }
-
-            50% {
-                transform: translateY(-10px);
-            }
-        }
-
-        .logo-text h1 {
-            font-size: 36px;
-            font-weight: 900;
-            letter-spacing: 2px;
-            background: linear-gradient(135deg, var(--primary), #fff, var(--primary));
-            background-size: 200% 200%;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            animation: gradientShift 3s ease infinite;
-        }
-
-        @keyframes gradientShift {
-
-            0%,
-            100% {
-                background-position: 0% 50%;
-            }
-
-            50% {
-                background-position: 100% 50%;
-            }
-        }
-
-        .logo-text p {
-            font-size: 11px;
-            letter-spacing: 4px;
-            color: var(--primary);
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-top: 5px;
-        }
-
-        .control-panel {
-            padding: 20px 30px;
-            background: rgba(26, 31, 58, 0.5);
-            border-bottom: 1px solid var(--border);
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
-        .premium-btn {
-            padding: 14px 28px;
-            background: linear-gradient(135deg, var(--primary), var(--primary-dark));
-            border: none;
-            border-radius: 12px;
-            color: var(--dark);
-            font-weight: 700;
-            font-size: 14px;
-            cursor: pointer;
-            transition: all 0.3s ease;
+        .odd-label { font-size: 9px; color: var(--text-muted); margin-bottom: 2px; }
+        .odd-val { font-size: 13px; font-weight: 700; color: var(--text); }
+        
+        /* VURGULAMA EFEKTLERİ (HIGHLIGHT) */
+        .gold-glow {
+            background: linear-gradient(145deg, #ffc107, #ff9800);
+            border-color: #ffd54f;
+            transform: translateY(-2px);
             box-shadow: 0 4px 15px rgba(255, 193, 7, 0.3);
         }
+        .gold-glow .odd-label { color: rgba(0,0,0,0.7); font-weight: 800; }
+        .gold-glow .odd-val { color: #000; }
 
-        .premium-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(255, 193, 7, 0.5);
-        }
+        /* Loading & Error */
+        .state-msg { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+        .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 15px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
-        .premium-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .premium-btn.secondary {
-            background: rgba(42, 47, 74, 0.9);
-            border: 2px solid rgba(255, 193, 7, 0.3);
-            color: var(--primary);
-            box-shadow: none;
-        }
-
-        .premium-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .premium-match-card {
-            background: linear-gradient(135deg, rgba(26, 31, 58, 0.95), rgba(42, 47, 74, 0.95));
-            backdrop-filter: blur(20px);
-            border: 1px solid var(--border);
-            border-left: 4px solid var(--primary);
-            border-radius: 12px;
-            padding: 15px;
-            margin-bottom: 15px;
-            transition: all 0.4s ease;
-            max-width: 100%;
-            overflow: hidden;
-        }
-
-        .premium-match-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
-        }
-
-        .match-header {
-            display: grid;
-            grid-template-columns: 1fr auto;
-            gap: 15px;
-            margin-bottom: 12px;
-        }
-
-        @media (max-width: 768px) {
-            .match-header {
-                grid-template-columns: 1fr;
-                gap: 12px;
-            }
-
-            .prediction-panel {
-                min-width: 100% !important;
-            }
-        }
-
-        .team-info {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .match-teams {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--text);
-            line-height: 1.3;
-        }
-
-        .vs-separator {
-            color: var(--primary);
-            font-weight: 900;
-            margin: 0 8px;
-        }
-
-        .match-meta {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-        }
-
-        .meta-badge {
-            padding: 3px 8px;
-            background: rgba(255, 193, 7, 0.1);
-            border: 1px solid rgba(255, 193, 7, 0.3);
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        .prediction-panel {
-            background: rgba(10, 14, 39, 0.6);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 12px;
-            min-width: 250px;
-        }
-
-        .prediction-header {
-            font-size: 11px;
-            font-weight: 700;
-            color: var(--text-muted);
-            margin-bottom: 10px;
-            text-transform: uppercase;
-        }
-
-        .odds-row {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 8px;
-        }
-
-        .odds-label {
-            font-size: 10px;
-            color: var(--text-muted);
-            font-weight: 600;
-            min-width: 70px;
-        }
-
-        .odds-values {
-            display: flex;
-            gap: 5px;
-            flex: 1;
-            justify-content: flex-end;
-        }
-
-        .odd-item {
-            padding: 5px 10px;
-            background: rgba(42, 47, 74, 0.8);
-            border: 1px solid rgba(255, 193, 7, 0.2);
-            border-radius: 6px;
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--text-muted);
-            min-width: 45px;
-            text-align: center;
-        }
-
-        .odd-item.selected {
-            background: var(--primary);
-            border-color: var(--primary);
-            color: var(--dark);
-            box-shadow: 0 0 15px rgba(255, 193, 7, 0.4);
-        }
-
-        .confidence-meter {
-            background: rgba(10, 14, 39, 0.8);
-            border: 2px solid;
-            border-radius: 6px;
-            padding: 6px 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-top: 8px;
-        }
-
-        .confidence-value {
-            font-size: 14px;
-            font-weight: 900;
-        }
-
-        .analysis-section {
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid var(--border);
-        }
-
-        .analysis-title {
-            font-size: 12px;
-            font-weight: 700;
-            color: var(--primary);
-            margin-bottom: 10px;
-        }
-
-        .analysis-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-            gap: 8px;
-        }
-
-        @media (max-width: 768px) {
-            .analysis-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        .analysis-card {
-            background: rgba(10, 14, 39, 0.6);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 8px;
-        }
-
-        .analysis-card-title {
-            font-size: 9px;
-            font-weight: 700;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            margin-bottom: 5px;
-        }
-
-        .analysis-card-value {
-            font-size: 14px;
-            font-weight: 700;
-            color: var(--primary);
-        }
-
-        .premium-loading {
-            text-align: center;
-            padding: 60px 20px;
-        }
-
-        .loading-spinner {
-            width: 60px;
-            height: 60px;
-            border: 5px solid rgba(255, 193, 7, 0.1);
-            border-top-color: var(--primary);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 0 auto 20px;
-        }
-
-        @keyframes spin {
-            to {
-                transform: rotate(360deg);
-            }
-        }
-
-        .loading-text {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--primary);
-        }
-
-        .premium-alert {
-            border-radius: 12px;
-            padding: 15px;
-            margin: 15px 0;
-            border: 2px solid;
-        }
-
-        .premium-alert.success {
-            background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(5, 150, 105, 0.2));
-            border-color: var(--success);
-        }
-
-        .premium-alert.warning {
-            background: linear-gradient(135deg, rgba(255, 193, 7, 0.2), rgba(255, 152, 0, 0.2));
-            border-color: var(--primary);
-        }
-
-        .form-indicator {
-            display: inline-flex;
-            gap: 2px;
-            padding: 3px 6px;
-            background: rgba(10, 14, 39, 0.8);
-            border-radius: 6px;
-            font-size: 10px;
-            font-weight: 700;
-        }
-
-        .form-w {
-            color: var(--success);
-        }
-
-        .form-d {
-            color: var(--primary);
-        }
-
-        .form-l {
-            color: var(--danger);
-        }
-
-        .filter-panel {
-            padding: 15px 20px;
-            background: rgba(26, 31, 58, 0.5);
-            border-bottom: 1px solid var(--border);
-        }
-
-        .filter-group {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .filter-group label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-        }
-
-        .filter-group select {
-            padding: 8px 12px;
-            background: rgba(42, 47, 74, 0.9);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            color: var(--text);
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            min-width: 130px;
-        }
-
-        .filter-group select:hover {
-            border-color: var(--primary);
-        }
-
-        .compact-odds {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 6px;
-            margin-top: 6px;
-        }
-
-        .compact-odds-item {
-            padding: 6px;
-            border-radius: 6px;
-            text-align: center;
-            font-size: 10px;
-            font-weight: 600;
-        }
-
-        .data-quality {
-            margin-top: 5px;
-            padding: 4px;
-            background: rgba(10, 14, 39, 0.6);
-            border-radius: 4px;
-            font-size: 8px;
-            text-align: center;
-        }
     </style>
 </head>
-
 <body>
-    <div class="animated-bg"></div>
 
-    <div class="main-wrapper">
-        <header class="premium-header">
-            <div class="header-top">
-                <div class="status-group">
-                    <div class="status-pill active">
-                        <span>🧠 Akıllı Analiz Motoru</span>
-                    </div>
-                    <div class="status-pill">
-                        📊 <span id="match-count">0</span> Maç
-                    </div>
-                    <div class="status-pill">
-                        🎯 <span id="prediction-count">0</span> Tahmin
-                    </div>
-                    <div class="status-pill" id="csv-status">
-                        📂 CSV: Bekleniyor
-                    </div>
-                    <div class="status-pill" id="api-status">
-                        🌐 API: Kontrol Ediliyor
-                    </div>
-                </div>
-            </div>
+    <div class="header">
+        <div class="header-inner">
+            <div class="logo">PREDICTA PRO 🤖</div>
+            <div class="filters">
+                <select id="sort-select" onchange="renderApp()">
+                    <option value="date">⏰ Saate Göre</option>
+                    <option value="conf_1">🏠 MS 1 Güven</option>
+                    <option value="conf_2">✈️ MS 2 Güven</option>
+                    <option value="conf_over">⚽ Üst Güven</option>
+                    <option value="conf_btts">🤝 KG Var Güven</option>
+                </select>
+                
+                <select id="conf-filter" onchange="renderApp()">
+                    <option value="0">Tüm Maçlar</option>
+                    <option value="50">En Az %50 Güven</option>
+                    <option value="60">En Az %60 Güven</option>
+                    <option value="70">En Az %70 Güven</option>
+                </select>
 
-            <div class="logo-section">
-                <div class="logo-orb"></div>
-                <div class="logo-text">
-                    <h1>PREDICTAAI</h1>
-                    <p>Advanced AI Engine</p>
-                </div>
-            </div>
-
-            <div class="control-panel">
-                <button class="premium-btn secondary" onclick="manualLoadCSV()">
-                    📂 Manuel CSV Yükle
-                </button>
-                <button class="premium-btn" onclick="wakeUpAPI()" id="wake-api-btn">
-                    🔥 API'yi Uyandır
-                </button>
-                <button class="premium-btn" onclick="fetchMatches()" id="fetch-matches-btn">
-                    📊 Maçları Yükle
-                </button>
-                <button class="premium-btn" id="predict-all-btn" onclick="predictAllMatches()" disabled>
-                    🎯 Gelişmiş Analiz Yap
-                </button>
-                <button class="premium-btn secondary" onclick="loadManualMatches()">
-                    🧪 Manuel Maç Ekle
-                </button>
-                <button class="premium-btn secondary" onclick="clearAll()">
-                    🗑️ Temizle
-                </button>
-            </div>
-
-            <div class="filter-panel" id="filter-panel" style="display: none;">
-                <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
-                    <div class="filter-group">
-                        <label>📅 Gün:</label>
-                        <select id="filter-date" onchange="applyFilters()">
-                            <option value="all">Tümü</option>
-                            <option value="today">Bugün</option>
-                            <option value="tomorrow">Yarın</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>🎯 Min. Güven:</label>
-                        <select id="filter-confidence" onchange="applyFilters()">
-                            <option value="0">Tümü</option>
-                            <option value="50">%50+</option>
-                            <option value="60">%60+</option>
-                            <option value="70">%70+</option>
-                            <option value="80">%80+</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>📊 Sıralama:</label>
-                        <select id="filter-sort" onchange="applyFilters()">
-                            <option value="default">Varsayılan</option>
-                            <option value="confidence-desc">Güven (Yüksek → Düşük)</option>
-                            <option value="confidence-asc">Güven (Düşük → Yüksek)</option>
-                            <option value="date-asc">Tarih (Erken → Geç)</option>
-                            <option value="quality-desc">Veri Kalitesi (Yüksek → Düşük)</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>🔍 Maç Sonucu:</label>
-                        <select id="filter-prediction" onchange="applyFilters()">
-                            <option value="all">Tümü</option>
-                            <option value="1">Ev Sahibi (1)</option>
-                            <option value="X">Beraberlik (X)</option>
-                            <option value="2">Deplasman (2)</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>📈 Alt/Üst 2.5:</label>
-                        <select id="filter-overunder" onchange="applyFilters()">
-                            <option value="all">Tümü</option>
-                            <option value="over">Üst 2.5</option>
-                            <option value="under">Alt 2.5</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label>🎯 KG Var/Yok:</label>
-                        <select id="filter-btts" onchange="applyFilters()">
-                            <option value="all">Tümü</option>
-                            <option value="yes">KG Var</option>
-                            <option value="no">KG Yok</option>
-                        </select>
-                    </div>
-
-                    <button class="premium-btn secondary" onclick="resetFilters()"
-                        style="padding: 8px 16px; margin-left: auto;">
-                        🔄 Sıfırla
-                    </button>
-                </div>
-            </div>
-        </header>
-
-        <div class="premium-container" id="match-container">
-            <div class="premium-loading">
-                <div class="loading-spinner"></div>
-                <div class="loading-text">Hazırlanıyor...</div>
+                <button class="btn-refresh" onclick="initApp()">Yenile</button>
             </div>
         </div>
     </div>
 
-    <!-- index.html dosyasının en altındaki <script> kısmı -->
-<script>
-    // Backend URL'si (Kendi sunucu adresin veya lokal)
-    // Eğer aynı sunucudaysan '/api/matches/live' yeterli
-    const API_URL = '/api/matches/live';
+    <div class="container" id="app-container">
+        <!-- İçerik JS ile gelecek -->
+    </div>
 
-    // Sayfa yüklendiğinde çalışır
-    document.addEventListener('DOMContentLoaded', () => {
-        fetchMatches();
-    });
+    <script>
+        const API_URL = '/api/matches/live';
+        let matchesData = [];
 
-    async function fetchMatches() {
-        const container = document.getElementById('match-container');
-        
-        // 1. Yükleniyor ekranını göster
-        container.innerHTML = `
-            <div class="premium-loading">
-                <div class="loading-spinner"></div>
-                <div class="loading-text">Yapay Zeka Analiz Ediyor...</div>
-                <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">Nesine ve Veritabanı Çapraz Sorgulanıyor</div>
-            </div>
-        `;
+        // Sayfa Yüklendiğinde
+        document.addEventListener('DOMContentLoaded', initApp);
 
-        try {
-            // 2. Python Backend'e istek at
-            const response = await fetch(API_URL);
-            const data = await response.json();
+        async function initApp() {
+            const container = document.getElementById('app-container');
+            container.innerHTML = '<div class="state-msg"><div class="spinner"></div><div>Veriler Çekiliyor ve Analiz Ediliyor...</div></div>';
 
-            if (!data.success) throw new Error(data.error || 'Veri alınamadı');
+            try {
+                const res = await fetch(API_URL);
+                const data = await res.json();
 
-            // 3. Maçları ekrana bas
-            renderMatches(data.matches);
-            
-            // İstatistikleri güncelle
-            document.getElementById('match-count').textContent = data.count;
-            // Tahmin olan maç sayısı
-            const predictedCount = data.matches.filter(m => m.prediction).length;
-            document.getElementById('prediction-count').textContent = predictedCount;
-            
-            document.getElementById('api-status').innerHTML = '🌐 Sistem: <span style="color: var(--success)">Online</span>';
-
-        } catch (error) {
-            container.innerHTML = `
-                <div class="premium-alert warning">
-                    ❌ Hata: ${error.message}<br>
-                    Backend sunucunun çalıştığından emin ol.
-                    <button class="premium-btn" onclick="fetchMatches()" style="margin-top:10px">Tekrar Dene</button>
-                </div>
-            `;
-        }
-    }
-
-    function renderMatches(matches) {
-        const container = document.getElementById('match-container');
-        container.innerHTML = '';
-
-        if (matches.length === 0) {
-            container.innerHTML = '<div class="premium-alert">📭 Şu an bültende uygun maç yok.</div>';
-            return;
-        }
-
-        matches.forEach(match => {
-            // Python'dan gelen veriyi senin HTML kartına döküyoruz
-            const card = document.createElement('div');
-            card.className = 'premium-match-card';
-            
-            // Tahmin var mı yok mu kontrolü
-            const pred = match.prediction;
-            const hasPred = pred !== null;
-            
-            // Güven skoru hesaplama (Basitçe en yüksek olasılık)
-            let confidence = 0;
-            let bestPick = '?';
-            let borderClass = '';
-            
-            if (hasPred) {
-                const probs = pred.probs;
-                const maxProb = Math.max(probs['1'], probs['X'], probs['2']);
-                confidence = maxProb;
+                if (!data.success) throw new Error(data.error || 'API Hatası');
                 
-                if (probs['1'] === maxProb) bestPick = 'MS 1';
-                else if (probs['X'] === maxProb) bestPick = 'MS X';
-                else bestPick = 'MS 2';
+                matchesData = data.matches;
+                renderApp();
 
-                // Kenarlık rengi belirle
-                if (confidence > 60) {
-                    card.style.borderLeft = '5px solid var(--success)';
-                } else if (confidence > 45) {
-                    card.style.borderLeft = '5px solid var(--primary)';
+            } catch (err) {
+                container.innerHTML = `
+                    <div class="state-msg">
+                        <div style="color:var(--danger); font-size:20px; margin-bottom:10px;">⚠️</div>
+                        <div>Hata: ${err.message}</div>
+                        <button class="btn-refresh" onclick="initApp()" style="margin-top:15px;">Tekrar Dene</button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderApp() {
+            const container = document.getElementById('app-container');
+            const sortType = document.getElementById('sort-select').value;
+            const minConf = parseInt(document.getElementById('conf-filter').value);
+
+            let filtered = [...matchesData];
+
+            // Filtreleme
+            filtered = filtered.filter(m => {
+                if (!m.prediction) return false;
+                const p = m.prediction.probs;
+                // En yüksek olasılığı bul
+                const maxP = Math.max(p['1'], p['2'], p.over, p.under, p.btts_yes, p.btts_no);
+                return maxP >= minConf;
+            });
+
+            // Sıralama
+            filtered.sort((a, b) => {
+                const pa = a.prediction?.probs;
+                const pb = b.prediction?.probs;
+                if (!pa || !pb) return 0;
+
+                switch(sortType) {
+                    case 'conf_1': return pb['1'] - pa['1'];
+                    case 'conf_2': return pb['2'] - pa['2'];
+                    case 'conf_over': return pb.over - pa.over;
+                    case 'conf_btts': return pb.btts_yes - pa.btts_yes;
+                    case 'date': default: return a.date.localeCompare(b.date);
                 }
+            });
+
+            // Render
+            if (filtered.length === 0) {
+                container.innerHTML = '<div class="state-msg">Filtrelere uygun maç bulunamadı.</div>';
+                return;
             }
 
-            // HTML Şablonu (Senin tasarımın korundu)
-            card.innerHTML = `
-                <div class="match-header">
-                    <div class="team-info">
-                        <div class="match-teams">
-                            ${match.home} <span class="vs-separator">VS</span> ${match.away}
-                        </div>
-                        <div class="match-meta">
-                            <span class="meta-badge">🏆 ${match.league}</span>
-                            <span class="meta-badge">⏰ ${match.date}</span>
-                            ${hasPred ? `<span class="meta-badge" style="border-color: var(--success); color: var(--success)">✅ Analiz Tamamlandı</span>` : 
-                                        `<span class="meta-badge" style="border-color: var(--danger); color: var(--danger)">⚠️ Yetersiz Veri</span>`}
-                        </div>
-                    </div>
+            container.innerHTML = filtered.map(match => createMatchCard(match)).join('');
+        }
 
-                    <div class="prediction-panel">
-                        <div class="prediction-header">
-                            ${hasPred ? '🧠 YAPAY ZEKA TAHMİNİ' : 'VERİ BULUNAMADI'}
-                        </div>
+        function createMatchCard(match) {
+            const pred = match.prediction;
+            if (!pred) return ''; // Tahmin yoksa gösterme (isteğe bağlı)
 
-                        ${hasPred ? `
-                            <!-- Olasılık Barları -->
-                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 11px; color: var(--text-muted);">
-                                <span>MS 1 (%${pred.probs['1']})</span>
-                                <span>Beraberlik (%${pred.probs['X']})</span>
-                                <span>MS 2 (%${pred.probs['2']})</span>
+            const probs = pred.probs;
+            const stats = pred.stats;
+            const odds = match.odds;
+
+            // Vurgulanacak Kutuları Belirle
+            const is1 = probs['1'] > probs['X'] && probs['1'] > probs['2'];
+            const is2 = probs['2'] > probs['1'] && probs['2'] > probs['X'];
+            const isOver = probs.over > probs.under;
+            const isUnder = probs.under > probs.over;
+            const isBttsYes = probs.btts_yes > probs.btts_no;
+            const isBttsNo = probs.btts_no > probs.btts_yes;
+
+            // Oranları güvenli al
+            const odd1 = odds['1'] || '-';
+            const oddX = odds['X'] || '-';
+            const odd2 = odds['2'] || '-';
+            const oddOver = odds['Over/Under +2.5']?.['Over +2.5'] || '-';
+            const oddUnder = odds['Over/Under +2.5']?.['Under +2.5'] || '-';
+            const oddKgVar = odds['Both Teams To Score']?.['Yes'] || '-';
+
+            return `
+                <div class="card">
+                    <div class="card-header">
+                        <!-- Sol: Takım Bilgileri -->
+                        <div>
+                            <div class="teams">${match.home} <span class="vs">vs</span> ${match.away}</div>
+                            <div class="meta">
+                                <span class="badge">🏆 ${match.league}</span>
+                                <span class="badge">⏰ ${match.date}</span>
                             </div>
-                            <div style="display: flex; height: 6px; border-radius: 3px; overflow: hidden; margin-bottom: 10px;">
-                                <div style="width: ${pred.probs['1']}%; background: var(--success);"></div>
-                                <div style="width: ${pred.probs['X']}%; background: var(--text-muted);"></div>
-                                <div style="width: ${pred.probs['2']}%; background: var(--danger);"></div>
-                            </div>
-
-                            <!-- İstatistikler -->
-                            <div class="odds-row">
-                                <div class="odds-label">Gol Beklentisi (xG):</div>
-                                <div class="odds-values" style="font-size: 12px; color: var(--primary);">
-                                    Ev: <b>${pred.stats.home_xg}</b> - Dep: <b>${pred.stats.away_xg}</b>
+                            <div class="xg-box">
+                                <div>Gol Beklentisi (xG)</div>
+                                <div>
+                                    <span class="xg-val">${stats.home_xg}</span> - <span class="xg-val">${stats.away_xg}</span>
                                 </div>
                             </div>
+                        </div>
 
-                            <div class="confidence-meter">
-                                <span style="font-size: 10px; color: var(--text-muted);">Önerilen Tercih</span>
-                                <span class="confidence-value" style="color: var(--primary);">${bestPick}</span>
-                            </div>
-                            <div style="text-align: right; font-size: 10px; color: ${confidence > 50 ? 'var(--success)' : 'var(--danger)'}; margin-top: 2px;">
-                                Güven: %${confidence}
-                            </div>
+                        <!-- Sağ: Analiz Barları -->
+                        <div class="analysis">
+                            <div class="analysis-title">Yapay Zeka Olasılıkları</div>
+                            ${createBar('MS 1', probs['1'], 'var(--success)')}
+                            ${createBar('MS 2', probs['2'], 'var(--danger)')}
+                            ${createBar('2.5 ÜST', probs.over, 'var(--primary)')}
+                            ${createBar('KG VAR', probs.btts_yes, 'var(--secondary)')}
+                        </div>
+                    </div>
 
-                            <!-- Veritabanı Eşleşmesi Debug (Geliştirici için) -->
-                            <div style="font-size: 8px; color: var(--text-muted); margin-top: 8px; opacity: 0.5;">
-                                Eşleşen: ${pred.home_team_db} vs ${pred.away_team_db}
-                            </div>
-                        ` : `
-                            <div style="text-align: center; padding: 10px; color: var(--text-muted); font-size: 11px;">
-                                Bu takımlar için geçmiş veritabanında yeterli eşleşme bulunamadı.<br>
-                                (CSV verisini kontrol et)
-                            </div>
-                        `}
+                    <!-- Alt: Oranlar Grid -->
+                    <div class="odds-grid">
+                        <div class="odd-box ${is1 ? 'gold-glow' : ''}">
+                            <div class="odd-label">MS 1 (%${probs['1'].toFixed(0)})</div>
+                            <div class="odd-val">${odd1}</div>
+                        </div>
+                        <div class="odd-box">
+                            <div class="odd-label">BER (%${probs['X'].toFixed(0)})</div>
+                            <div class="odd-val">${oddX}</div>
+                        </div>
+                        <div class="odd-box ${is2 ? 'gold-glow' : ''}">
+                            <div class="odd-label">MS 2 (%${probs['2'].toFixed(0)})</div>
+                            <div class="odd-val">${odd2}</div>
+                        </div>
+                        <div class="odd-box ${isOver ? 'gold-glow' : ''}">
+                            <div class="odd-label">ÜST (%${probs.over.toFixed(0)})</div>
+                            <div class="odd-val">${oddOver}</div>
+                        </div>
+                        <div class="odd-box ${isUnder ? 'gold-glow' : ''}">
+                            <div class="odd-label">ALT (%${probs.under.toFixed(0)})</div>
+                            <div class="odd-val">${oddUnder}</div>
+                        </div>
+                        <div class="odd-box ${isBttsYes ? 'gold-glow' : ''}">
+                            <div class="odd-label">KG VAR (%${probs.btts_yes.toFixed(0)})</div>
+                            <div class="odd-val">${oddKgVar}</div>
+                        </div>
                     </div>
                 </div>
-                
-                <!-- Nesine Oranları (KG VAR EKLENDİ) -->
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
-                    <!-- Maç Sonucu -->
-                    <div class="odd-item">MS 1: <span style="color:var(--text); font-weight:bold;">${match.odds['1'] || '-'}</span></div>
-                    <div class="odd-item">MS X: <span style="color:var(--text); font-weight:bold;">${match.odds['X'] || '-'}</span></div>
-                    <div class="odd-item">MS 2: <span style="color:var(--text); font-weight:bold;">${match.odds['2'] || '-'}</span></div>
+            `;
+        }
 
-                    <!-- 2.5 Üst -->
-                    ${(match.odds['Over/Under +2.5'] && match.odds['Over/Under +2.5']['Over +2.5']) ? 
-                        `<div class="odd-item" style="border-color: var(--primary);">2.5 Üst: <span style="color:var(--primary); font-weight:bold;">${match.odds['Over/Under +2.5']['Over +2.5']}</span></div>` 
-                        : ''}
-
-                    <!-- KG Var (YENİ EKLENEN KISIM) -->
-                    ${(match.odds['Both Teams To Score'] && match.odds['Both Teams To Score']['Yes']) ? 
-                        `<div class="odd-item" style="border-color: var(--secondary);">KG Var: <span style="color:var(--secondary); font-weight:bold;">${match.odds['Both Teams To Score']['Yes']}</span></div>` 
-                        : ''}
+        function createBar(label, val, color) {
+            return `
+                <div class="bar-row">
+                    <div class="bar-label">${label}</div>
+                    <div class="bar-track"><div class="bar-fill" style="width:${val}%; background:${color}"></div></div>
+                    <div class="bar-val">%${val.toFixed(0)}</div>
                 </div>
             `;
+        }
+    </script>
 
-            container.appendChild(card);
-        });
-    }
-    
-    // Diğer buton fonksiyonlarını (Manuel Yükle vb.) silebilirsin veya 
-    // "Geliştirme aşamasında" uyarısı verdirebilirsin.
-    function wakeUpAPI() { fetchMatches(); }
-    function clearAll() { document.getElementById('match-container').innerHTML = ''; }
-</script>
 </body>
 </html>
