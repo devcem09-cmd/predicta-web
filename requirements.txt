@@ -1,4 +1,8 @@
 flask
 flask-cors
+pandas
+numpy
 requests
+scipy
+rapidfuzz
 gunicorn
