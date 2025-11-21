@@ -1,105 +1,128 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
-<meta charset="UTF-8">
-<title>Geçmiş Tahminler</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<style>
-body {font-family: Arial; margin:20px;}
-table {border-collapse: collapse; width: 100%; margin-top:20px;}
-th, td {border:1px solid #ccc; padding:8px; text-align:center;}
-th {background:#f4f4f4;}
-.correct {color:green;} .wrong {color:red;}
-.panel {display:flex; gap:20px;}
-.panel div {padding:10px; border:1px solid #ccc; border-radius:5px; flex:1; text-align:center; background:#f9f9f9;}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predicta PRO | Geçmiş & Performans</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #0b1121; color: #e2e8f0; }
+        .card-bg { background: #151f32; border: 1px solid #1e293b; }
+        .status-win { color: #4ade80; background: rgba(74, 222, 128, 0.1); border: 1px solid rgba(74, 222, 128, 0.2); }
+        .status-loss { color: #f87171; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.2); }
+    </style>
 </head>
-<body>
-<h2>Geçmiş Tahminler</h2>
+<body class="min-h-screen pb-20">
 
-<div class="panel">
-  <div>Toplam Maç: <span id="total">0</span></div>
-  <div>MS Doğruluk: <span id="ms_acc">0%</span></div>
-  <div>Over Doğruluk: <span id="over_acc">0%</span></div>
-  <div>BTTS Doğruluk: <span id="btts_acc">0%</span></div>
-</div>
+    <div x-data="historyData()" x-init="fetchHistory()" class="container mx-auto px-2 max-w-4xl pt-4">
 
-<canvas id="weeklyChart" height="100" style="margin-top:20px;"></canvas>
+        <!-- Header & Nav -->
+        <div class="flex justify-between items-center mb-6 px-2">
+            <h1 class="text-xl font-bold text-white tracking-tight">GEÇMİŞ <span class="text-slate-500">ANALİZLER</span></h1>
+            <a href="/" class="text-sm bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg transition text-slate-300">
+                <i class="fa-solid fa-arrow-left mr-2"></i>Canlı Bülten
+            </a>
+        </div>
 
-<table>
-  <thead>
-    <tr>
-      <th>Tarih</th>
-      <th>Lig</th>
-      <th>Ev Sahibi</th>
-      <th>Deplasman</th>
-      <th>MS Tahmin</th>
-      <th>MS Sonuç</th>
-      <th>MS Doğru?</th>
-      <th>Over 2.5 Doğru?</th>
-      <th>BTTS Doğru?</th>
-    </tr>
-  </thead>
-  <tbody id="history-body"></tbody>
-</table>
+        <!-- Performans Özeti (Dashboard) -->
+        <div class="grid grid-cols-3 gap-3 mb-6">
+            <div class="card-bg p-4 rounded-xl text-center">
+                <div class="text-xs text-slate-500 uppercase font-bold mb-1">Toplam Maç</div>
+                <div class="text-2xl font-bold text-white" x-text="stats.total">0</div>
+            </div>
+            <div class="card-bg p-4 rounded-xl text-center relative overflow-hidden">
+                <div class="text-xs text-slate-500 uppercase font-bold mb-1">Başarı Oranı</div>
+                <div class="text-2xl font-bold" :class="stats.rate > 60 ? 'text-green-400' : 'text-yellow-400'" x-text="'%' + stats.rate">0%</div>
+                <!-- Arka plan efekti -->
+                <div class="absolute bottom-0 left-0 h-1 bg-gradient-to-r from-green-500 to-transparent transition-all duration-1000" :style="`width: ${stats.rate}%`"></div>
+            </div>
+            <div class="card-bg p-4 rounded-xl text-center">
+                <div class="text-xs text-slate-500 uppercase font-bold mb-1">Durum</div>
+                <div class="text-xs font-bold px-2 py-1 rounded inline-block bg-blue-900/30 text-blue-400 border border-blue-500/30">
+                    <i class="fa-solid fa-server mr-1"></i> AKTİF
+                </div>
+            </div>
+        </div>
 
-<script>
-async function loadHistory() {
-  const res = await fetch('/api/history');
-  const data = await res.json();
-  const tbody = document.getElementById('history-body');
-  tbody.innerHTML = '';
+        <!-- Maç Listesi -->
+        <div class="space-y-3">
+            <template x-if="loading">
+                <div class="text-center py-10 text-slate-500">Veriler yükleniyor...</div>
+            </template>
+            
+            <template x-if="!loading && matches.length === 0">
+                <div class="text-center py-10 text-slate-500">Henüz sonuçlanmış maç yok.</div>
+            </template>
 
-  data.forEach(m => {
-    const ms_pred = (m.probs['1']>m.probs['2'] && m.probs['1']>m.probs['X'])?'1':
-                    (m.probs['2']>m.probs['1'] && m.probs['2']>m.probs['X']?'2':'X');
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${m.date}</td>
-      <td>${m.league}</td>
-      <td>${m.home}</td>
-      <td>${m.away}</td>
-      <td>${ms_pred}</td>
-      <td>${m.result.home}-${m.result.away}</td>
-      <td class="${m.result.correct_ms?'correct':'wrong'}">${m.result.correct_ms?'✅':'❌'}</td>
-      <td class="${m.result.correct_over?'correct':'wrong'}">${m.result.correct_over?'✅':'❌'}</td>
-      <td class="${m.result.correct_btts?'correct':'wrong'}">${m.result.correct_btts?'✅':'❌'}</td>
-    `;
-    tbody.appendChild(row);
-  });
-}
+            <template x-for="match in matches" :key="match.id">
+                <div class="card-bg rounded-lg p-4 flex items-center justify-between group hover:border-slate-600 transition">
+                    
+                    <!-- Sol: Tarih ve Lig -->
+                    <div class="w-1/4">
+                        <div class="text-[10px] text-slate-500 font-mono" x-text="match.date"></div>
+                        <div class="text-[10px] text-slate-400 font-bold uppercase truncate w-20" x-text="match.league"></div>
+                    </div>
 
-async function loadStats() {
-  const res = await fetch('/api/stats');
-  const stats = await res.json();
-  document.getElementById('total').innerText = stats.total;
-  document.getElementById('ms_acc').innerText = stats.ms_accuracy + '%';
-  document.getElementById('over_acc').innerText = stats.over_accuracy + '%';
-  document.getElementById('btts_acc').innerText = stats.btts_accuracy + '%';
+                    <!-- Orta: Takımlar ve Skor -->
+                    <div class="flex-1 flex flex-col items-center justify-center px-2">
+                        <div class="flex justify-center items-center w-full gap-3 text-sm font-bold text-white">
+                            <span class="text-right flex-1 truncate" x-text="match.home"></span>
+                            
+                            <span class="bg-slate-900 px-3 py-1 rounded text-yellow-500 font-mono text-base border border-slate-800" x-text="match.score"></span>
+                            
+                            <span class="text-left flex-1 truncate" x-text="match.away"></span>
+                        </div>
+                    </div>
 
-  const ctx = document.getElementById('weeklyChart').getContext('2d');
-  new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels: stats.weekly_labels,
-      datasets: [{
-        label: 'Haftalık MS Başarı %',
-        data: stats.weekly_data,
-        fill: false,
-        borderColor: 'blue',
-        tension: 0.1
-      }]
-    },
-    options: {
-      responsive:true,
-      plugins:{legend:{display:true}},
-      scales:{y:{beginAtZero:true, max:100}}
-    }
-  });
-}
+                    <!-- Sağ: Tahmin ve Sonuç -->
+                    <div class="w-1/4 text-right pl-2 border-l border-slate-800">
+                        <div class="text-[10px] text-slate-500 mb-1">Tahmin: <strong class="text-slate-300" x-text="getPrediction(match)"></strong></div>
+                        
+                        <div class="text-xs font-bold px-2 py-1 rounded-md inline-flex items-center gap-1 justify-center w-full"
+                             :class="match.success ? 'status-win' : 'status-loss'">
+                            <i class="fa-solid" :class="match.success ? 'fa-check' : 'fa-xmark'"></i>
+                            <span x-text="match.success ? 'TUTTU' : 'YATTI'"></span>
+                        </div>
+                    </div>
 
-loadHistory();
-loadStats();
-</script>
+                </div>
+            </template>
+        </div>
+
+    </div>
+
+    <script>
+        function historyData() {
+            return {
+                matches: [],
+                stats: { total: 0, rate: 0 },
+                loading: true,
+                async fetchHistory() {
+                    try {
+                        const res = await fetch('/api/history');
+                        const data = await res.json();
+                        this.matches = data.matches;
+                        this.stats = data.stats;
+                    } catch (e) {
+                        console.error("Hata:", e);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                getPrediction(match) {
+                    // En yüksek olasılığı bulup ekrana yaz
+                    const p = match.probs;
+                    const max = Math.max(p['1'], p['X'], p['2']);
+                    if (p['1'] === max) return 'MS 1 (Ev)';
+                    if (p['X'] === max) return 'MS X (Ber)';
+                    return 'MS 2 (Dep)';
+                }
+            }
+        }
+    </script>
 </body>
 </html>
