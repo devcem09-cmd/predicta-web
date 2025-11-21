@@ -3,14 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <title>Geçmiş Tahminler</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
-table {border-collapse: collapse; width: 100%;}
+body {font-family: Arial; margin:20px;}
+table {border-collapse: collapse; width: 100%; margin-top:20px;}
 th, td {border:1px solid #ccc; padding:8px; text-align:center;}
 th {background:#f4f4f4;}
+.correct {color:green;} .wrong {color:red;}
+.panel {display:flex; gap:20px;}
+.panel div {padding:10px; border:1px solid #ccc; border-radius:5px; flex:1; text-align:center; background:#f9f9f9;}
 </style>
 </head>
 <body>
 <h2>Geçmiş Tahminler</h2>
+
+<div class="panel">
+  <div>Toplam Maç: <span id="total">0</span></div>
+  <div>MS Doğruluk: <span id="ms_acc">0%</span></div>
+  <div>Over Doğruluk: <span id="over_acc">0%</span></div>
+  <div>BTTS Doğruluk: <span id="btts_acc">0%</span></div>
+</div>
+
+<canvas id="weeklyChart" height="100" style="margin-top:20px;"></canvas>
+
 <table>
   <thead>
     <tr>
@@ -29,27 +44,62 @@ th {background:#f4f4f4;}
 </table>
 
 <script>
-fetch('/api/history')
-.then(res => res.json())
-.then(data => {
-    const tbody = document.getElementById('history-body');
-    data.forEach(m => {
-        const ms_pred = (m.probs['1']>m.probs['2'] && m.probs['1']>m.probs['X'])?'1':(m.probs['2']>m.probs['1'] && m.probs['2']>m.probs['X']?'2':'X');
-        const row = document.createElement('tr');
-        row.innerHTML = `
-            <td>${m.date}</td>
-            <td>${m.league}</td>
-            <td>${m.home}</td>
-            <td>${m.away}</td>
-            <td>${ms_pred}</td>
-            <td>${m.result.home}-${m.result.away}</td>
-            <td>${m.result.correct_ms?'✅':'❌'}</td>
-            <td>${m.result.correct_over?'✅':'❌'}</td>
-            <td>${m.result.correct_btts?'✅':'❌'}</td>
-        `;
-        tbody.appendChild(row);
-    });
-});
+async function loadHistory() {
+  const res = await fetch('/api/history');
+  const data = await res.json();
+  const tbody = document.getElementById('history-body');
+  tbody.innerHTML = '';
+
+  data.forEach(m => {
+    const ms_pred = (m.probs['1']>m.probs['2'] && m.probs['1']>m.probs['X'])?'1':
+                    (m.probs['2']>m.probs['1'] && m.probs['2']>m.probs['X']?'2':'X');
+    const row = document.createElement('tr');
+    row.innerHTML = `
+      <td>${m.date}</td>
+      <td>${m.league}</td>
+      <td>${m.home}</td>
+      <td>${m.away}</td>
+      <td>${ms_pred}</td>
+      <td>${m.result.home}-${m.result.away}</td>
+      <td class="${m.result.correct_ms?'correct':'wrong'}">${m.result.correct_ms?'✅':'❌'}</td>
+      <td class="${m.result.correct_over?'correct':'wrong'}">${m.result.correct_over?'✅':'❌'}</td>
+      <td class="${m.result.correct_btts?'correct':'wrong'}">${m.result.correct_btts?'✅':'❌'}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+async function loadStats() {
+  const res = await fetch('/api/stats');
+  const stats = await res.json();
+  document.getElementById('total').innerText = stats.total;
+  document.getElementById('ms_acc').innerText = stats.ms_accuracy + '%';
+  document.getElementById('over_acc').innerText = stats.over_accuracy + '%';
+  document.getElementById('btts_acc').innerText = stats.btts_accuracy + '%';
+
+  const ctx = document.getElementById('weeklyChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: stats.weekly_labels,
+      datasets: [{
+        label: 'Haftalık MS Başarı %',
+        data: stats.weekly_data,
+        fill: false,
+        borderColor: 'blue',
+        tension: 0.1
+      }]
+    },
+    options: {
+      responsive:true,
+      plugins:{legend:{display:true}},
+      scales:{y:{beginAtZero:true, max:100}}
+    }
+  });
+}
+
+loadHistory();
+loadStats();
 </script>
 </body>
 </html>
