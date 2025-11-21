@@ -1,300 +1,358 @@
-code
-Html
 <!DOCTYPE html>
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Predicta PRO - AI Analiz Paneli</title>
-    <link rel="icon" type="image/jpeg" href="/static/logo.jpg"> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Predicta PRO - Live</title>
+    <!-- Fontlar -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+    
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap');
-
         :root {
-            --primary: #ffc107;
-            --secondary: #667eea;
-            --success: #10b981;
-            --danger: #ef4444;
-            --dark: #0f172a;
-            --dark-card: #1e293b;
-            --text: #f8fafc;
+            --primary: #fbbf24;       /* Sarı */
+            --primary-dark: #d97706;
+            --secondary: #6366f1;     /* İndigo */
+            --success: #10b981;       /* Yeşil */
+            --danger: #ef4444;        /* Kırmızı */
+            --dark: #0f172a;          /* Arka Plan */
+            --card-bg: #1e293b;       /* Kart Rengi */
+            --border: 1px solid rgba(255,255,255,0.08);
+            --text: #f1f5f9;
             --text-muted: #94a3b8;
-            --border: rgba(255, 255, 255, 0.1);
+            --glass: rgba(30, 41, 59, 0.7);
         }
 
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Inter', sans-serif; background: var(--dark); color: var(--text); padding-bottom: 50px; }
-
-        /* Header */
-        .header {
-            background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px);
-            position: sticky; top: 0; z-index: 100; border-bottom: 1px solid var(--border);
-            padding: 10px 15px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
-        }
-        .header-inner { 
-            max-width: 1200px; margin: 0 auto; 
-            display: flex; align-items: center; justify-content: space-between; gap: 15px;
-        }
-
-        .logo-container { display: flex; align-items: center; gap: 10px; }
-        .logo-img { height: 50px; width: auto; border-radius: 50%; filter: drop-shadow(0 0 5px rgba(102, 126, 234, 0.5)); }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         
-        /* Filtreler */
-        .filters {
-            display: flex; gap: 8px; overflow-x: auto; padding-bottom: 2px; align-items: center; scrollbar-width: none; 
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background: var(--dark); 
+            color: var(--text); 
+            padding-bottom: 80px; 
+            overscroll-behavior-y: none; /* Pull-to-refresh engelleme (App hissi için) */
         }
-        .filters::-webkit-scrollbar { display: none; }
+
+        /* --- HEADER & NAV --- */
+        .app-header {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
+            position: sticky; top: 0; z-index: 100;
+            border-bottom: var(--border);
+            padding: 12px 16px;
+        }
+
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        
+        .brand { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; letter-spacing: -0.5px; }
+        .brand span { color: var(--primary); }
+        .live-badge { 
+            font-size: 10px; background: rgba(16, 185, 129, 0.2); color: var(--success); 
+            padding: 4px 8px; border-radius: 12px; font-weight: 700; display: flex; align-items: center; gap: 5px;
+        }
+        .live-dot { width: 6px; height: 6px; background: var(--success); border-radius: 50%; animation: pulse 2s infinite; }
+
+        /* --- FİLTRELER --- */
+        .filters-scroll {
+            display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none;
+        }
+        .filters-scroll::-webkit-scrollbar { display: none; }
 
         select, .btn-refresh {
-            background: var(--dark-card); color: var(--text); border: 1px solid var(--border);
-            padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: 600;
-            cursor: pointer; white-space: nowrap; outline: none;
+            background: #334155; color: #fff; border: var(--border);
+            padding: 8px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+            outline: none; appearance: none;
         }
         select:focus { border-color: var(--primary); }
-        
         .btn-refresh { background: var(--primary); color: #000; border: none; font-weight: 800; }
+        .btn-refresh:active { transform: scale(0.95); }
 
-        /* Mobil Düzen */
-        @media (max-width: 768px) {
-            .header-inner { flex-direction: column; align-items: stretch; }
-            .logo-container { justify-content: center; margin-bottom: 10px; }
-            .filters { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-            .btn-refresh { grid-column: span 2; }
+        /* --- KART YAPISI --- */
+        .container { max-width: 800px; margin: 15px auto; padding: 0 15px; }
+
+        .match-card {
+            background: var(--card-bg); border: var(--border); border-radius: 16px;
+            margin-bottom: 16px; overflow: hidden; position: relative;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            animation: slideUp 0.4s ease-out;
         }
 
-        /* Container */
-        .container { max-width: 1200px; margin: 20px auto; padding: 0 15px; }
+        .card-body { padding: 16px; }
 
-        /* Kart */
-        .card {
-            background: var(--dark-card); border-radius: 12px; border: 1px solid var(--border);
-            margin-bottom: 20px; overflow: hidden; position: relative;
-        }
-        
-        .card-header { padding: 15px; display: grid; grid-template-columns: 1fr; gap: 15px; }
-        @media (min-width: 768px) { .card-header { grid-template-columns: 1.5fr 1fr; } }
+        .league-info { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
 
-        .teams { font-size: 16px; font-weight: 800; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-        .vs { color: var(--primary); font-size: 12px; font-weight: 800; padding: 0 5px; }
-        .meta { display: flex; gap: 8px; font-size: 11px; color: var(--text-muted); margin-bottom: 10px; }
-        .badge { background: rgba(255,255,255,0.05); padding: 3px 8px; border-radius: 4px; border: 1px solid rgba(255,255,255,0.05); }
+        .teams-wrapper { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+        .team-name { font-size: 15px; font-weight: 700; line-height: 1.3; }
+        .team-name.away { text-align: right; }
+        .vs-badge { background: #334155; color: var(--text-muted); font-size: 10px; padding: 4px 8px; border-radius: 6px; font-weight: 800; }
 
-        .xg-box {
-            background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px;
-            font-size: 11px; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;
-            border-left: 3px solid var(--secondary);
-        }
-        .xg-val { color: var(--primary); font-weight: 700; font-size: 13px; }
+        /* Analiz Barları */
+        .ai-analysis { background: rgba(0,0,0,0.2); border-radius: 12px; padding: 12px; margin-bottom: 12px; }
+        .bar-row { display: flex; align-items: center; margin-bottom: 8px; font-size: 11px; }
+        .bar-row:last-child { margin-bottom: 0; }
+        .bar-label { width: 60px; font-weight: 600; color: var(--text-muted); }
+        .bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.05); border-radius: 10px; margin: 0 10px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 10px; transition: width 0.5s ease; }
+        .bar-val { width: 30px; text-align: right; font-weight: 700; }
 
-        /* Analiz Paneli */
-        .analysis { background: rgba(0,0,0,0.2); border-radius: 8px; padding: 12px; }
-        .bar-row { display: flex; align-items: center; margin-bottom: 6px; font-size: 11px; }
-        .bar-label { width: 60px; font-weight: 600; }
-        .bar-track { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 4px; margin: 0 10px; overflow: hidden; }
-        .bar-fill { height: 100%; border-radius: 4px; }
-        .bar-val { width: 35px; text-align: right; font-weight: 700; color: #fff; }
-
-        /* Oranlar */
+        /* Oran Grid */
         .odds-grid {
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 15px;
-            border-top: 1px solid var(--border); background: rgba(0,0,0,0.15);
+            display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px;
+            background: rgba(255,255,255,0.05); border-top: var(--border);
         }
-        @media (min-width: 600px) { .odds-grid { grid-template-columns: repeat(6, 1fr); } }
+        .odd-item {
+            background: var(--card-bg); padding: 12px 5px; text-align: center;
+            display: flex; flex-direction: column; gap: 4px; position: relative;
+        }
+        .odd-title { font-size: 9px; color: var(--text-muted); font-weight: 700; }
+        .odd-val { font-size: 13px; font-weight: 800; color: #fff; }
 
-        .odd-box {
-            background: var(--dark); border: 1px solid var(--border); border-radius: 8px;
-            padding: 10px 5px; text-align: center; position: relative; transition: all 0.3s;
-        }
-        .odd-label { font-size: 9px; color: var(--text-muted); margin-bottom: 4px; font-weight: 600; }
-        .odd-val { font-size: 14px; font-weight: 800; color: var(--text); }
-        
-        /* Gold Glow */
+        /* Altın Parlama Efekti */
         .gold-glow {
-            background: linear-gradient(135deg, #ffc107, #ff9800); border-color: #ffd54f;
-            transform: translateY(-3px); box-shadow: 0 5px 20px rgba(255, 193, 7, 0.4); z-index: 2;
+            background: linear-gradient(180deg, rgba(251, 191, 36, 0.1) 0%, rgba(251, 191, 36, 0) 100%);
+            box-shadow: inset 0 2px 0 0 var(--primary);
         }
-        .gold-glow .odd-label { color: rgba(0,0,0,0.7); font-weight: 900; }
-        .gold-glow .odd-val { color: #000; }
+        .gold-glow .odd-val { color: var(--primary); }
 
-        .state-msg { text-align: center; padding: 60px 20px; color: var(--text-muted); }
-        .spinner { width: 35px; height: 35px; border: 3px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 15px; }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        /* --- SKELETON LOADING --- */
+        .skeleton { animation: shimmer 1.5s infinite linear; background: linear-gradient(to right, #1e293b 4%, #334155 25%, #1e293b 36%); background-size: 1000px 100%; }
+        .sk-card { height: 180px; border-radius: 16px; margin-bottom: 15px; }
+        
+        /* --- TOAST --- */
+        .toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%) translateY(20px);
+            background: #fff; color: #000; padding: 10px 20px; border-radius: 30px;
+            font-size: 12px; font-weight: 700; opacity: 0; transition: all 0.3s;
+            pointer-events: none; z-index: 200; box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+        }
+        .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        @keyframes shimmer { 0% { background-position: -1000px 0; } 100% { background-position: 1000px 0; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
-    <div class="header">
-        <div class="header-inner">
-            <div class="logo-container">
-                <img src="/static/logo.jpg" alt="Predicta AI" class="logo-img">
-            </div>
-
-            <div class="filters">
-                <!-- GELİŞMİŞ SIRALAMA FİLTRESİ -->
-                <select id="sort-select" onchange="renderApp()">
-                    <option value="date">⏰ Saat</option>
-                    <option value="conf_1">🏠 MS 1</option>
-                    <option value="conf_x">⚖️ MS 0 (Ber)</option> <!-- YENİ -->
-                    <option value="conf_2">✈️ MS 2</option>
-                    <option value="conf_over">⚽ ÜST</option>
-                    <option value="conf_under">📉 ALT</option> <!-- YENİ -->
-                    <option value="conf_btts_yes">🤝 KG VAR</option>
-                    <option value="conf_btts_no">⛔ KG YOK</option> <!-- YENİ -->
-                </select>
-                
-                <select id="conf-filter" onchange="renderApp()">
-                    <option value="0">Tümü</option>
-                    <option value="40">%40+</option> <!-- Beraberlik için düşük sınır gerekli -->
-                    <option value="50">%50+</option>
-                    <option value="60">%60+</option>
-                    <option value="70">%70+</option>
-                </select>
-
-                <button class="btn-refresh" onclick="initApp()">YENİLE</button>
+    <header class="app-header">
+        <div class="header-top">
+            <div class="brand">PREDICTA<span>PRO</span></div>
+            <div class="live-indicator">
+                <div class="live-badge"><div class="live-dot"></div> CANLI AKIŞ</div>
             </div>
         </div>
+
+        <div class="filters-scroll">
+            <select id="sort-select">
+                <option value="date">⏰ Tarihe Göre</option>
+                <option value="conf_1">🏠 MS 1 Güven</option>
+                <option value="conf_x">⚖️ Beraberlik</option>
+                <option value="conf_2">✈️ MS 2 Güven</option>
+                <option value="conf_over">⚽ 2.5 ÜST</option>
+                <option value="conf_under">📉 2.5 ALT</option>
+                <option value="conf_btts_yes">🤝 KG VAR</option>
+                <option value="conf_btts_no">⛔ KG YOK</option>
+            </select>
+            
+            <select id="conf-filter">
+                <option value="0">Tüm Oranlar</option>
+                <option value="40">%40+ İhtimal</option>
+                <option value="50">%50+ İhtimal</option>
+                <option value="60">%60+ İhtimal</option>
+                <option value="70">%70+ İhtimal</option>
+            </select>
+
+            <button class="btn-refresh" id="btn-refresh">YENİLE</button>
+        </div>
+    </header>
+
+    <div class="container" id="app-container">
+        <!-- İskelet Yükleme Ekranı (İlk Açılış) -->
+        <div class="skeleton sk-card"></div>
+        <div class="skeleton sk-card"></div>
+        <div class="skeleton sk-card"></div>
     </div>
 
-    <div class="container" id="app-container"></div>
+    <div id="toast" class="toast">Veriler Güncellendi</div>
 
     <script>
-        const API_URL = '/api/matches/live';
-        let matchesData = [];
+        // --- AYARLAR ---
+        // Eğer Python backend'i Render'a yüklediysen URL'i buraya yapıştır:
+        // Örn: 'https://predicta-backend.onrender.com/api/matches/live'
+        const API_URL = '/api/matches/live'; 
+        const REFRESH_RATE = 30000; // 30 Saniye
 
-        document.addEventListener('DOMContentLoaded', initApp);
+        // --- STATE YÖNETİMİ ---
+        let appState = {
+            matches: [],
+            isFetching: false
+        };
 
-        async function initApp() {
-            const container = document.getElementById('app-container');
-            container.innerHTML = '<div class="state-msg"><div class="spinner"></div><div>Analiz Yapılıyor...</div></div>';
+        const dom = {
+            container: document.getElementById('app-container'),
+            sort: document.getElementById('sort-select'),
+            filter: document.getElementById('conf-filter'),
+            refreshBtn: document.getElementById('btn-refresh'),
+            toast: document.getElementById('toast')
+        };
+
+        // --- BAŞLATMA ---
+        document.addEventListener('DOMContentLoaded', () => {
+            fetchData();
+            // Otomatik Yenileme Döngüsü
+            setInterval(() => fetchData(true), REFRESH_RATE);
+        });
+
+        // Event Listeners (Modern Yöntem)
+        dom.sort.addEventListener('change', renderApp);
+        dom.filter.addEventListener('change', renderApp);
+        dom.refreshBtn.addEventListener('click', () => fetchData(false));
+
+        // --- VERİ ÇEKME ---
+        async function fetchData(isBackground = false) {
+            if (appState.isFetching) return;
+            appState.isFetching = true;
+
+            if (!isBackground && appState.matches.length === 0) {
+                // Sadece ilk yüklemede loading göster, arkada güncellerken gösterme
+                dom.container.innerHTML = '<div class="skeleton sk-card"></div><div class="skeleton sk-card"></div>';
+            }
 
             try {
                 const res = await fetch(API_URL);
                 const data = await res.json();
-                if (!data.success) throw new Error(data.error || 'API Hatası');
-                matchesData = data.matches;
-                renderApp();
+                
+                if (data.success) {
+                    appState.matches = data.matches;
+                    renderApp();
+                    if (isBackground) showToast("Canlı veriler güncellendi");
+                }
             } catch (err) {
-                container.innerHTML = `<div class="state-msg"><div>Hata: ${err.message}</div><button class="btn-refresh" onclick="initApp()" style="margin-top:20px; width:auto;">Tekrar Dene</button></div>`;
+                console.error("API Hatası:", err);
+                if (!isBackground) {
+                    dom.container.innerHTML = `<div style="text-align:center; padding:40px; color:var(--text-muted)">
+                        <div>Veri çekilemedi.</div>
+                        <button onclick="fetchData()" class="btn-refresh" style="margin-top:10px">Tekrar Dene</button>
+                    </div>`;
+                }
+                if (isBackground) showToast("Bağlantı Hatası!");
+            } finally {
+                appState.isFetching = false;
             }
         }
 
+        // --- UI RENDER ---
         function renderApp() {
-            const container = document.getElementById('app-container');
-            const sortType = document.getElementById('sort-select').value;
-            const minConf = parseInt(document.getElementById('conf-filter').value);
+            const sortType = dom.sort.value;
+            const minConf = parseInt(dom.filter.value);
 
-            let filtered = [...matchesData];
+            let filtered = [...appState.matches];
 
-            // Filtreleme
+            // 1. FİLTRELEME
             filtered = filtered.filter(m => {
                 if (!m.prediction) return false;
                 const p = m.prediction.probs;
-                // En yüksek herhangi bir ihtimali filtre sınırından büyük olanları getir
-                const maxP = Math.max(p['1'], p['X'], p['2'], p.over, p.under, p.btts_yes, p.btts_no);
+                // Kullanıcının seçtiği kritere göre maksimum ihtimali kontrol et
+                const maxP = Math.max(
+                    p['1'], p['X'], p['2'], 
+                    p.over, p.under, 
+                    p.btts_yes, p.btts_no
+                );
                 return maxP >= minConf;
             });
 
-            // GELİŞMİŞ SIRALAMA MANTIĞI
+            // 2. SIRALAMA
             filtered.sort((a, b) => {
-                const pa = a.prediction?.probs;
-                const pb = b.prediction?.probs;
-                if (!pa || !pb) return 0;
+                const pa = a.prediction?.probs || {};
+                const pb = b.prediction?.probs || {};
 
                 switch(sortType) {
-                    case 'conf_1': return pb['1'] - pa['1'];
-                    case 'conf_x': return pb['X'] - pa['X']; // Beraberlik Sıralaması
-                    case 'conf_2': return pb['2'] - pa['2'];
-                    case 'conf_over': return pb.over - pa.over;
-                    case 'conf_under': return pb.under - pa.under; // Alt Sıralaması
-                    case 'conf_btts_yes': return pb.btts_yes - pa.btts_yes;
-                    case 'conf_btts_no': return pb.btts_no - pa.btts_no; // KG Yok Sıralaması
+                    case 'conf_1': return (pb['1'] || 0) - (pa['1'] || 0);
+                    case 'conf_x': return (pb['X'] || 0) - (pa['X'] || 0);
+                    case 'conf_2': return (pb['2'] || 0) - (pa['2'] || 0);
+                    case 'conf_over': return (pb.over || 0) - (pa.over || 0);
+                    case 'conf_under': return (pb.under || 0) - (pa.under || 0);
+                    case 'conf_btts_yes': return (pb.btts_yes || 0) - (pa.btts_yes || 0);
+                    case 'conf_btts_no': return (pb.btts_no || 0) - (pa.btts_no || 0);
                     case 'date': default: return a.date.localeCompare(b.date);
                 }
             });
 
             if (filtered.length === 0) {
-                container.innerHTML = '<div class="state-msg">Kriterlere uygun maç bulunamadı.</div>';
+                dom.container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted)">Kriterlere uygun maç bulunamadı.</div>';
                 return;
             }
-            container.innerHTML = filtered.map(match => createMatchCard(match)).join('');
+
+            dom.container.innerHTML = filtered.map(match => createCard(match)).join('');
         }
 
-        function createMatchCard(match) {
-            const pred = match.prediction;
-            if (!pred) return '';
+        function createCard(match) {
+            const p = match.prediction.probs;
+            const o = match.odds;
 
-            const probs = pred.probs;
-            const stats = pred.stats;
-            const odds = match.odds;
-
-            // VURGULAMA MANTIĞI (Sarı Yanması İçin)
-            // Artık sadece "En Yüksek" değil, belli bir eşiği geçenler de parlayabilir
-            // Ama şimdilik "Kendi kategorisinin kazananı"nı parlatalım
-            const is1 = probs['1'] > probs['X'] && probs['1'] > probs['2'];
-            const isX = probs['X'] > probs['1'] && probs['X'] > probs['2']; // Beraberlik Vurgusu
-            const is2 = probs['2'] > probs['1'] && probs['2'] > probs['X'];
+            // Vurgulama Mantığı (Hangi kutu altın rengi yanacak?)
+            const is1 = p['1'] > p['X'] && p['1'] > p['2'];
+            const isX = p['X'] > p['1'] && p['X'] > p['2'];
+            const is2 = p['2'] > p['1'] && p['2'] > p['X'];
             
-            const isOver = probs.over > probs.under;
-            const isUnder = probs.under > probs.over; // Alt Vurgusu
+            // Oranları Güvenli Çek
+            const getOdd = (main, sub) => (o[main] && o[main][sub]) ? o[main][sub] : (o[main] || '-');
             
-            const isBttsYes = probs.btts_yes > probs.btts_no;
-            const isBttsNo = probs.btts_no > probs.btts_yes; // KG Yok Vurgusu
-
-            // Oranlar
-            const odd1 = odds['1'] || '-';
-            const oddX = odds['X'] || '-';
-            const odd2 = odds['2'] || '-';
-            const oddOver = odds['Over/Under +2.5']?.['Over +2.5'] || '-';
-            const oddUnder = odds['Over/Under +2.5']?.['Under +2.5'] || '-';
-            const oddKgVar = odds['Both Teams To Score']?.['Yes'] || '-';
-            const oddKgYok = odds['Both Teams To Score']?.['No'] || '-'; // Eğer Nesine veriyorsa
+            const odd1 = o['1'] || '-';
+            const oddX = o['X'] || '-';
+            const odd2 = o['2'] || '-';
+            const oddOver = getOdd('Over/Under +2.5', 'Over +2.5');
+            const oddUnder = getOdd('Over/Under +2.5', 'Under +2.5');
+            const oddKgVar = getOdd('Both Teams To Score', 'Yes');
 
             return `
-                <div class="card">
-                    <div class="card-header">
-                        <div>
-                            <div class="teams">${match.home} <span class="vs">VS</span> ${match.away}</div>
-                            <div class="meta">
-                                <span class="badge">🏆 ${match.league}</span>
-                                <span class="badge">⏰ ${match.date}</span>
-                            </div>
-                            <div class="xg-box">
-                                <div>⚡ xG (Gol Beklentisi)</div>
-                                <div><span class="xg-val">${stats.home_xg}</span> - <span class="xg-val">${stats.away_xg}</span></div>
-                            </div>
+                <div class="match-card">
+                    <div class="card-body">
+                        <div class="league-info">
+                            <span>${match.league}</span>
+                            <span>${match.date}</span>
                         </div>
-                        <div class="analysis">
-                            <div class="analysis-title"><span>Yapay Zeka Analizi</span><span style="color:var(--success)">Online ●</span></div>
-                            ${createBar('MS 1', probs['1'], 'var(--success)')}
-                            ${createBar('MS 0', probs['X'], 'var(--text-muted)')}
-                            ${createBar('MS 2', probs['2'], 'var(--danger)')}
-                            ${createBar('2.5 ÜST', probs.over, 'var(--primary)')}
+                        
+                        <div class="teams-wrapper">
+                            <div class="team-name home">${match.home}</div>
+                            <span class="vs-badge">VS</span>
+                            <div class="team-name away">${match.away}</div>
+                        </div>
+
+                        <div class="ai-analysis">
+                            ${createBar('MS 1', p['1'], 'var(--success)')}
+                            ${createBar('MS 0', p['X'], 'var(--secondary)')}
+                            ${createBar('MS 2', p['2'], 'var(--danger)')}
+                            ${createBar('2.5 ÜST', p.over, 'var(--primary)')}
                         </div>
                     </div>
+
                     <div class="odds-grid">
-                        <div class="odd-box ${is1 ? 'gold-glow' : ''}">
-                            <div class="odd-label">MS 1 (%${probs['1'].toFixed(0)})</div>
+                        <div class="odd-item ${is1 ? 'gold-glow' : ''}">
+                            <div class="odd-title">MS 1 (%${p['1'].toFixed(0)})</div>
                             <div class="odd-val">${odd1}</div>
                         </div>
-                        <div class="odd-box ${isX ? 'gold-glow' : ''}">
-                            <div class="odd-label">BER (%${probs['X'].toFixed(0)})</div>
+                        <div class="odd-item ${isX ? 'gold-glow' : ''}">
+                            <div class="odd-title">BER (%${p['X'].toFixed(0)})</div>
                             <div class="odd-val">${oddX}</div>
                         </div>
-                        <div class="odd-box ${is2 ? 'gold-glow' : ''}">
-                            <div class="odd-label">MS 2 (%${probs['2'].toFixed(0)})</div>
+                        <div class="odd-item ${is2 ? 'gold-glow' : ''}">
+                            <div class="odd-title">MS 2 (%${p['2'].toFixed(0)})</div>
                             <div class="odd-val">${odd2}</div>
                         </div>
-                        <div class="odd-box ${isOver ? 'gold-glow' : ''}">
-                            <div class="odd-label">ÜST (%${probs.over.toFixed(0)})</div>
+                        <div class="odd-item ${(p.over > p.under) ? 'gold-glow' : ''}">
+                            <div class="odd-title">ÜST (%${p.over.toFixed(0)})</div>
                             <div class="odd-val">${oddOver}</div>
                         </div>
-                        <div class="odd-box ${isUnder ? 'gold-glow' : ''}">
-                            <div class="odd-label">ALT (%${probs.under.toFixed(0)})</div>
+                        <div class="odd-item ${(p.under > p.over) ? 'gold-glow' : ''}">
+                            <div class="odd-title">ALT (%${p.under.toFixed(0)})</div>
                             <div class="odd-val">${oddUnder}</div>
                         </div>
-                        <div class="odd-box ${isBttsYes ? 'gold-glow' : ''}">
-                            <div class="odd-label">KG VAR (%${probs.btts_yes.toFixed(0)})</div>
+                        <div class="odd-item ${(p.btts_yes > p.btts_no) ? 'gold-glow' : ''}">
+                            <div class="odd-title">KG VAR (%${p.btts_yes.toFixed(0)})</div>
                             <div class="odd-val">${oddKgVar}</div>
                         </div>
                     </div>
@@ -303,7 +361,21 @@ Html
         }
 
         function createBar(label, val, color) {
-            return `<div class="bar-row"><div class="bar-label">${label}</div><div class="bar-track"><div class="bar-fill" style="width:${val}%; background:${color}"></div></div><div class="bar-val">%${val.toFixed(0)}</div></div>`;
+            return `
+                <div class="bar-row">
+                    <div class="bar-label">${label}</div>
+                    <div class="bar-track">
+                        <div class="bar-fill" style="width:${val}%; background:${color}"></div>
+                    </div>
+                    <div class="bar-val">%${val.toFixed(0)}</div>
+                </div>`;
+        }
+
+        function showToast(message) {
+            const t = dom.toast;
+            t.textContent = message;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 3000);
         }
     </script>
 </body>
