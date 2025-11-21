@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tahminli Maçlar</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { 
+      background: linear-gradient(135deg, #0a0a23 0%, #1a1a3e 100%); 
+      color: #fff; 
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+      padding: 20px; 
+      min-height: 100vh;
+    }
+    
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    
+    h2 { 
+      color: #f9d342; 
+      font-size: 28px;
+      margin-bottom: 10px;
+      text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+    }
+    
+    .back-btn {
+      display: inline-block;
+      background: #f9d342;
+      color: #0a0a23;
+      padding: 10px 20px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+      margin-top: 10px;
+      transition: 0.3s;
+    }
+    
+    .back-btn:hover {
+      background: #ffd700;
+      transform: translateY(-2px);
+    }
+    
+    .back-btn:hover {
+      background: #ffd700;
+      transform: translateY(-2px);
+    }
+    
+    .sub-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+      margin-bottom: 30px;
+      padding: 20px;
+      background: rgba(255,255,255,0.05);
+      border-radius: 12px;
+    }
+    
+    .sub-tabs button {
+      background: linear-gradient(135deg, #333 0%, #555 100%);
+      border: 2px solid rgba(249,211,66,0.3);
+      padding: 12px 20px;
+      color: #fff;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      transition: all 0.3s;
+      min-width: 100px;
+    }
+    
+    .sub-tabs button:hover {
+      background: linear-gradient(135deg, #f9d342 0%, #ffd700 100%);
+      color: #0a0a23;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(249,211,66,0.3);
+    }
+    
+    .sub-tabs button.active {
+      background: linear-gradient(135deg, #f9d342 0%, #ffd700 100%);
+      color: #0a0a23;
+      border-color: #f9d342;
+    }
+    
+    #matchList {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    
+    .loading {
+      text-align: center;
+      padding: 40px;
+      font-size: 18px;
+      color: #f9d342;
+    }
+    
+    .match {
+      background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2a 100%);
+      margin: 15px 0;
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid rgba(249,211,66,0.2);
+      transition: all 0.3s;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    
+    .match:hover {
+      border-color: #f9d342;
+      transform: translateX(5px);
+      box-shadow: 0 5px 20px rgba(249,211,66,0.2);
+    }
+    
+    .match-info {
+      flex: 1;
+      min-width: 250px;
+    }
+    
+    .match-teams {
+      color: #00eaff;
+      font-size: 18px;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    
+    .match-league {
+      color: #999;
+      font-size: 13px;
+      margin-bottom: 5px;
+    }
+    
+    .match-date {
+      color: #f9d342;
+      font-size: 13px;
+    }
+    
+    .match-prediction {
+      display: flex;
+      gap: 15px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    
+    .pred-item {
+      background: rgba(249,211,66,0.1);
+      padding: 8px 15px;
+      border-radius: 8px;
+      border: 1px solid rgba(249,211,66,0.3);
+    }
+    
+    .pred-label {
+      color: #aaa;
+      font-size: 12px;
+      display: block;
+      margin-bottom: 3px;
+    }
+    
+    .pred-value {
+      color: #f9d342;
+      font-size: 20px;
+      font-weight: bold;
+    }
+    
+    .no-data {
+      text-align: center;
+      padding: 40px;
+      color: #999;
+      font-size: 16px;
+    }
+    
+    @media (max-width: 768px) {
+      .match {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      
+      .match-prediction {
+        margin-top: 15px;
+        width: 100%;
+        justify-content: space-around;
+      }
+      
+      h2 {
+        font-size: 22px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h2>📊 Yüzdelik Tahmin Listesi</h2>
+    <a href="prematch.html" class="back-btn">⬅ Geri Dön</a>
+  </div>
+  
+  <div class="sub-tabs" id="subOptions"></div>
+  <div id="matchList"><div class="loading">Yükleniyor...</div></div>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const type = params.get("type") || "ms";
+    let selectedOption = null;
+
+    const subOptions = {
+      ms: ["1", "0", "2"],
+      iy: ["İY 1", "İY 0", "İY 2"],
+      iyms: ["0/0", "0/1", "0/2", "1/0", "1/1", "1/2", "2/0", "2/1", "2/2"],
+      handikap: ["Ev -1", "Ev -2", "Ev -3", "Dep -1", "Dep -2", "Dep -3"],
+      kg: ["KGV", "İY KGV", "2Y KGV"],
+      au: ["1.5 Üst", "2.5 Üst", "3.5 Üst", "4.5 Üst", "İY 1.5 Üst", "İY 2.5 Üst"],
+      toplamgol: ["0-1", "2-3", "4-5", "+6"]
+    };
+
+    const typeNames = {
+      ms: "Maç Sonucu",
+      iy: "İlk Yarı",
+      iyms: "İY / MS",
+      handikap: "Handikap",
+      kg: "Karşılıklı Gol",
+      au: "Alt / Üst",
+      toplamgol: "Toplam Gol"
+    };
+
+    const container = document.getElementById("subOptions");
+    const matchList = document.getElementById("matchList");
+
+    function loadMatches(option) {
+      selectedOption = option;
+      matchList.innerHTML = '<div class="loading">Maçlar yükleniyor...</div>';
+      
+      // Aktif butonu güncelle
+      document.querySelectorAll('.sub-tabs button').forEach(btn => {
+        btn.classList.remove('active');
+        if (btn.textContent === option) {
+          btn.classList.add('active');
+        }
+      });
+      
+      fetch(`/prematch/${type}`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data.success || !data.matches || data.matches.length === 0) {
+            matchList.innerHTML = '<div class="no-data">Şu an için tahmin edilebilir maç bulunamadı.</div>';
+            return;
+          }
+          
+          // Seçilen opsiyona göre filtrele ve sırala
+          let filteredMatches = data.matches.map(match => {
+            const prediction = match.prediction[option];
+            return {
+              ...match,
+              selectedProb: prediction || 0
+            };
+          });
+          
+          // En yüksek olasılıktan en düşüğe sırala
+          filteredMatches.sort((a, b) => b.selectedProb - a.selectedProb);
+          
+          // İlk 10'u al
+          filteredMatches = filteredMatches.slice(0, 10);
+          
+          matchList.innerHTML = "";
+          
+          filteredMatches.forEach((match, index) => {
+            const div = document.createElement("div");
+            div.className = "match";
+            
+            // Tüm tahminleri göster
+            let predsHtml = '';
+            if (match.prediction) {
+              Object.entries(match.prediction).forEach(([key, value]) => {
+                predsHtml += `
+                  <div class="pred-item ${key === option ? 'highlighted' : ''}">
+                    <span class="pred-label">${key}</span>
+                    <span class="pred-value">${value}%</span>
+                  </div>
+                `;
+              });
+            }
+            
+            div.innerHTML = `
+              <div class="match-info">
+                <div class="match-teams">${index + 1}. ${match.home} vs ${match.away}</div>
+                <div class="match-league">🏆 ${match.league}</div>
+                <div class="match-date">📅 ${match.date}</div>
+              </div>
+              <div class="match-prediction">
+                ${predsHtml}
+              </div>
+            `;
+            matchList.appendChild(div);
+          });
+        })
+        .catch(err => {
+          console.error('API Hatası:', err);
+          matchList.innerHTML = '<div class="no-data">⚠️ Veriler yüklenirken bir hata oluştu.</div>';
+        });
+    }
+
+    // Alt seçenekleri oluştur
+    if (subOptions[type]) {
+      subOptions[type].forEach((option, index) => {
+        const btn = document.createElement("button");
+        btn.textContent = option;
+        btn.onclick = () => loadMatches(option);
+        container.appendChild(btn);
+        
+        // İlk butonu otomatik olarak yükle
+        if (index === 0) {
+          setTimeout(() => loadMatches(option), 100);
+        }
+      });
+    } else {
+      matchList.innerHTML = '<div class="no-data">Geçersiz bahis türü.</div>';
+    }
+  </script>
+</body>
+</html>
