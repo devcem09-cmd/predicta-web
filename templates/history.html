@@ -55,8 +55,16 @@
             </svg>
         </div>
 
+        <!-- LOADING -->
+        <div x-show="loading" x-cloak class="text-center py-10">
+            <div class="inline-block">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gold"></div>
+            </div>
+            <p class="text-slate-400 mt-3">Veriler yükleniyor...</p>
+        </div>
+
         <!-- TABLO -->
-        <div class="bg-card border border-white/10 rounded-xl overflow-hidden shadow-lg">
+        <div x-show="!loading" x-cloak class="bg-card border border-white/10 rounded-xl overflow-hidden shadow-lg">
             <div class="overflow-x-auto">
                 <table class="w-full text-left text-sm">
                     <thead>
@@ -91,7 +99,7 @@
                                 </td>
                             </tr>
                         </template>
-                        <tr x-show="filteredMatches.length === 0" x-cloak>
+                        <tr x-show="filteredMatches.length === 0 && !loading" x-cloak>
                             <td colspan="7" class="p-8 text-center text-slate-500">Kayıt bulunamadı.</td>
                         </tr>
                     </tbody>
@@ -110,14 +118,26 @@
                 sortCol: 'date',
                 sortAsc: false,
                 matches: [],
+                loading: true,
 
                 async loadHistory() {
+                    this.loading = true;
                     try {
                         const response = await fetch("/api/matches/history");
                         const data = await response.json();
-                        this.matches = data.matches || [];
+                        
+                        if (data.success) {
+                            this.matches = data.matches || [];
+                            console.log(`✅ ${this.matches.length} kayıt yüklendi`);
+                        } else {
+                            console.error("API Error:", data.error);
+                            this.matches = [];
+                        }
                     } catch (e) {
                         console.error('Geçmiş yüklenemedi:', e);
+                        this.matches = [];
+                    } finally {
+                        this.loading = false;
                     }
                 },
 
