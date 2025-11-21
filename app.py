@@ -460,7 +460,12 @@ def health(): return jsonify({"status": "ok"}), 200
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
-        try: fetch_live_data()
-        except: pass
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+        try: 
+            fetch_live_data()
+        except: 
+            pass
+    
+    # ✅ DOĞRU: Koyeb'in PORT'unu kullan
+    port = int(os.environ.get("PORT", 8000))
+    app.run(host='0.0.0.0', port=port, debug=False)
+
