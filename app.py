@@ -16,7 +16,7 @@ from rapidfuzz import process, fuzz
 from dotenv import load_dotenv
 
 # --- YAPILANDIRMA ---
-load_dotenv() # .env dosyasını okur
+load_dotenv()  # .env dosyasını okur
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, 'data', 'final_unified_dataset.csv')
@@ -30,10 +30,16 @@ logger = logging.getLogger("PredictaPRO")
 app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
 CORS(app)
 
-# Veritabanı (SQLite)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///predictapro.db'
+# Veritabanı - Koyeb için /app/instance kullan
+INSTANCE_DIR = os.path.join(BASE_DIR, 'instance')
+os.makedirs(INSTANCE_DIR, exist_ok=True)  # Klasörü oluştur
+
+DB_PATH = os.path.join(INSTANCE_DIR, 'predictapro.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+
+logger.info(f"📍 Veritabanı yolu: {DB_PATH}")
 
 # --- VERİTABANI MODELİ ---
 class Match(db.Model):
@@ -89,7 +95,7 @@ class MatchPredictor:
             return
 
         try:
-            # CSV Okuma (Senin formatına uygun)
+            # CSV Okuma
             required_cols = ['home_team', 'away_team', 'home_score', 'away_score']
             df = pd.read_csv(CSV_PATH, usecols=required_cols, encoding='utf-8', on_bad_lines='skip')
             
@@ -169,7 +175,7 @@ class MatchPredictor:
 
 predictor = MatchPredictor()
 
-# --- NESİNE VERİ ÇEKME (DÜZELTİLDİ: ID 14 ve 450) ---
+# --- NESİNE VERİ ÇEKME ---
 def fetch_live_data():
     with app.app_context():
         # .env kontrolü
@@ -194,7 +200,7 @@ def fetch_live_data():
 
             count = 0
             for m in d["sg"]["EA"]:
-                if m.get("GT") != 1: continue # Sadece Futbol
+                if m.get("GT") != 1: continue  # Sadece Futbol
 
                 match_code = str(m.get("C"))
                 
@@ -214,17 +220,17 @@ def fetch_live_data():
                             elif o["N"] == 2: odds["msx"] = o["O"]
                             elif o["N"] == 3: odds["ms2"] = o["O"]
                     
-                    # MTID 14: Karşılıklı Gol (KG Var/Yok) - SENİN VERİNE GÖRE
+                    # MTID 14: Karşılıklı Gol (KG Var/Yok)
                     elif mtid == 14:
                         for o in oca:
-                            if o["N"] == 1: odds["kgvar"] = o["O"] # N:1 -> KG VAR
-                            elif o["N"] == 2: odds["kgyok"] = o["O"] # N:2 -> KG YOK
+                            if o["N"] == 1: odds["kgvar"] = o["O"]  # N:1 -> KG VAR
+                            elif o["N"] == 2: odds["kgyok"] = o["O"]  # N:2 -> KG YOK
                             
-                    # MTID 450: 2.5 Gol Alt/Üst - SENİN VERİNE GÖRE
+                    # MTID 450: 2.5 Gol Alt/Üst
                     elif mtid == 450:
                          for o in oca:
-                             if o["N"] == 1: odds["ust"] = o["O"] # N:1 -> ÜST
-                             elif o["N"] == 2: odds["alt"] = o["O"] # N:2 -> ALT
+                             if o["N"] == 1: odds["ust"] = o["O"]  # N:1 -> ÜST
+                             elif o["N"] == 2: odds["alt"] = o["O"]  # N:2 -> ALT
 
                 if odds["ms1"] == "-": continue
 
@@ -256,6 +262,29 @@ def fetch_live_data():
         except Exception as e:
             logger.error(f"❌ API Hatası: {e}")
 
+# --- GÜVENLİ BAŞLATMA WRAPPERİ ---
+def safe_db_init():
+    """Her istekte veritabanını kontrol et"""
+    try:
+        with app.app_context():
+            # Tabloların var olup olmadığını kontrol et
+            from sqlalchemy import inspect
+            inspector = inspect(db.engine)
+            
+            if 'match' not in inspector.get_table_names():
+                logger.warning("⚠️ Tablolar bulunamadı, oluşturuluyor...")
+                db.create_all()
+                logger.info("✅ Tablolar oluşturuldu!")
+    except Exception as e:
+        logger.error(f"❌ Veritabanı kontrol hatası: {e}")
+
+# Her request öncesi kontrol (sadece ilk seferde çalışır)
+@app.before_request
+def ensure_db():
+    if not hasattr(app, '_db_initialized'):
+        safe_db_init()
+        app._db_initialized = True
+
 # --- ZAMANLAYICI ---
 scheduler = BackgroundScheduler()
 scheduler.add_job(func=fetch_live_data, trigger="interval", minutes=5)
@@ -264,32 +293,54 @@ atexit.register(lambda: scheduler.shutdown())
 
 # --- ROTALAR ---
 @app.route('/')
-def index(): return render_template('index.html')
+def index(): 
+    return render_template('index.html')
 
 @app.route('/api/matches')
 def get_matches():
     sort_by = request.args.get('sort_by', 'default')
     cutoff = datetime.now() - timedelta(hours=2)
-    matches = Match.query.filter(Match.date >= cutoff).all()
-    data = [m.to_dict() for m in matches]
     
-    if sort_by == 'prob_high':
-        data.sort(key=lambda x: max(x['probs']['1'], x['probs']['X'], x['probs']['2']), reverse=True)
-    elif sort_by == 'prob_over':
-        data.sort(key=lambda x: x['probs']['over'], reverse=True)
-    else:
-        data.sort(key=lambda x: x['date'])
+    try:
+        matches = Match.query.filter(Match.date >= cutoff).all()
+        data = [m.to_dict() for m in matches]
+        
+        if sort_by == 'prob_high':
+            data.sort(key=lambda x: max(x['probs']['1'], x['probs']['X'], x['probs']['2']), reverse=True)
+        elif sort_by == 'prob_over':
+            data.sort(key=lambda x: x['probs']['over'], reverse=True)
+        else:
+            data.sort(key=lambda x: x['date'])
 
-    return jsonify(data)
+        return jsonify(data)
+    except Exception as e:
+        logger.error(f"API Hatası: {e}")
+        # Veritabanını yeniden başlatmayı dene
+        safe_db_init()
+        return jsonify({"error": "Veritabanı hatası, yeniden deneyin"}), 500
 
 @app.route('/health')
-def health(): return jsonify({"status": "ok"}), 200
+def health(): 
+    try:
+        # Veritabanı bağlantısını test et
+        with app.app_context():
+            db.session.execute(db.text('SELECT 1'))
+        return jsonify({"status": "ok", "db": "connected"}), 200
+    except Exception as e:
+        logger.error(f"Health check hatası: {e}")
+        return jsonify({"status": "degraded", "db": "disconnected"}), 503
 
 if __name__ == '__main__':
+    # Veritabanını başlat
     with app.app_context():
         db.create_all()
-        try: fetch_live_data()
-        except: pass
+        logger.info("✅ Veritabanı hazır!")
+        
+        # İlk veri çekimini dene
+        try:
+            fetch_live_data()
+        except Exception as e:
+            logger.warning(f"⚠️ İlk veri çekimi başarısız: {e}")
     
     port = int(os.environ.get("PORT", 10000))
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=False)
