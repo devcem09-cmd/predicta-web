@@ -1,4 +1,4 @@
-# --- ASENKRON YAMA (EN BAŞTA OLMALI) ---
+# --- 1. ASENKRON YAMA (EN BAŞTA OLMAK ZORUNDA) ---
 import eventlet
 eventlet.monkey_patch()
 
@@ -21,7 +21,7 @@ from scipy.stats import poisson
 from rapidfuzz import process, fuzz
 from dotenv import load_dotenv
 
-# --- YAPILANDIRMA ---
+# --- 2. AYARLAR ---
 load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -33,10 +33,10 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger("PredictaPRO")
 
 app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+app.config['SECRET_KEY'] = 'gizli_key_change_this'
 CORS(app)
 
-# --- SOCKET.IO AYARLARI ---
-app.config['SECRET_KEY'] = 'gizli_anahtar_buraya' # Güvenlik için gerekli
+# WebSocket Başlatma
 socketio = SocketIO(app, cors_allowed_origins="*", async_mode='eventlet')
 
 # Veritabanı
@@ -48,7 +48,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{DB_PATH}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# --- MODEL ---
+# --- 3. MODELLER VE SINIFLAR ---
 class Match(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(20), unique=True)
@@ -90,7 +90,6 @@ class Match(db.Model):
             "success": self.is_successful
         }
 
-# --- TAHMİN MOTORU ---
 class MatchPredictor:
     def __init__(self):
         self.team_stats = {}
@@ -172,7 +171,15 @@ class MatchPredictor:
 
 predictor = MatchPredictor()
 
-# --- VERİ İŞLEMLERİ ---
+# --- 4. FONKSİYONLAR (SCHEDULER'DAN ÖNCE TANIMLANMALI) ---
+def broadcast_updates():
+    """Tüm bağlı istemcilere veriyi gönder"""
+    with app.app_context():
+        cutoff = datetime.now() - timedelta(hours=2)
+        matches = Match.query.filter(Match.date >= cutoff).all()
+        data = [m.to_dict() for m in matches]
+        socketio.emit('update_matches', data)
+
 def fetch_live_data():
     with app.app_context():
         token = os.getenv("NESINE_AUTH")
@@ -220,7 +227,6 @@ def fetch_live_data():
                     db.session.add(new_match)
                     changed = True
                 else:
-                    # Oran değiştiyse güncelle
                     if existing.odds != json.dumps(odds):
                         existing.odds = json.dumps(odds)
                         changed = True
@@ -231,15 +237,6 @@ def fetch_live_data():
                 broadcast_updates()
 
         except Exception as e: logger.error(f"Fetch Error: {e}")
-
-def broadcast_updates():
-    """Tüm bağlı istemcilere güncel veriyi gönderir"""
-    with app.app_context():
-        cutoff = datetime.now() - timedelta(hours=2)
-        matches = Match.query.filter(Match.date >= cutoff).all()
-        data = [m.to_dict() for m in matches]
-        # SocketIO üzerinden yayınla
-        socketio.emit('update_matches', data)
 
 def update_match_results():
     with app.app_context():
@@ -256,9 +253,8 @@ def update_match_results():
             m.is_successful = (max(probs, key=probs.get) == m.result_str)
         
         db.session.commit()
-        broadcast_updates() # Sonuçlar değişince de güncelle
+        broadcast_updates()
 
-# --- DB INIT ---
 def safe_db_init():
     try:
         with app.app_context():
@@ -270,14 +266,14 @@ def safe_db_init():
 def ensure_db():
     if not hasattr(app, '_db_initialized'): safe_db_init(); app._db_initialized = True
 
-# --- SCHEDULER ---
+# --- 5. SCHEDULER (ARTIK FONKSİYONLAR TANIMLI OLDUĞU İÇİN HATA VERMEZ) ---
 scheduler = BackgroundScheduler()
-scheduler.add_job(fetch_live_data, 'interval', minutes=3) # 3 dakikada bir
+scheduler.add_job(fetch_live_data, 'interval', minutes=3)
 scheduler.add_job(update_match_results, 'interval', minutes=10)
 scheduler.start()
 atexit.register(lambda: scheduler.shutdown())
 
-# --- ROTALAR ---
+# --- 6. ROTALAR ---
 @app.route('/')
 def index(): return render_template('index.html')
 
@@ -301,13 +297,11 @@ def api_history():
 @app.route('/health')
 def health(): return jsonify({"status": "ok"})
 
-# --- SOCKET EVENTLERİ ---
 @socketio.on('connect')
 def handle_connect():
-    # Yeni bağlanan kullanıcıya hemen mevcut veriyi gönder
     broadcast_updates()
 
+# --- 7. BAŞLATMA ---
 if __name__ == '__main__':
-    # app.run YERİNE socketio.run KULLANIYORUZ
     port = int(os.environ.get("PORT", 10000))
     socketio.run(app, host='0.0.0.0', port=port, allow_unsafe_werkzeug=True)
