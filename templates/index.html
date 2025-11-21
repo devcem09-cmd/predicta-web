@@ -6,7 +6,7 @@
     <title>Predicta PRO | Live Socket</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- Socket.IO Client Kütüphanesi -->
+    <!-- Socket.IO Client -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -17,8 +17,27 @@
         .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
         .card-bg { background: #151f32; border: 1px solid #1e293b; }
         .btn-active-yellow { background: #fbbf24; color: #000; border: none; box-shadow: 0 0 15px rgba(251, 191, 36, 0.3); }
-        .glow-success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4); color: #4ade80; }
-        .glow-warning { background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.4); color: #facc15; }
+        
+        /* --- YENİ TAHMİN KUTUSU STİLİ (SAPSARI) --- */
+        .prediction-box {
+            background-color: #facc15 !important; /* Parlak Sarı */
+            color: #000000 !important; /* Siyah Yazı */
+            border: 1px solid #facc15;
+            box-shadow: 0 0 15px rgba(250, 204, 21, 0.6); /* Parlama */
+            transform: scale(1.05); /* Hafif Büyüme */
+            z-index: 10;
+            font-weight: 800;
+        }
+        /* Sarı kutunun içindeki alt metinleri de siyah yap */
+        .prediction-box span {
+            color: #000000 !important;
+            opacity: 1 !important;
+        }
+        /* Sarı kutunun içindeki başlıkları (MS 1 vb.) biraz daha koyu yap */
+        .prediction-box .odd-label {
+            color: #422006 !important; /* Koyu kahve/siyah */
+            font-weight: 700;
+        }
     </style>
 </head>
 <body class="min-h-screen pb-20 selection:bg-yellow-500 selection:text-black">
@@ -30,7 +49,6 @@
             <div>
                 <h1 class="text-2xl font-extrabold text-yellow-500 tracking-tighter italic">PREDICTA<span class="text-white not-italic">PRO</span></h1>
                 <div class="flex items-center gap-2">
-                    <!-- Socket Durum Işığı -->
                     <span class="relative flex h-2 w-2">
                       <span class="absolute inline-flex h-full w-full rounded-full opacity-75" :class="connected ? 'bg-green-400 animate-ping' : 'bg-red-400'"></span>
                       <span class="relative inline-flex rounded-full h-2 w-2" :class="connected ? 'bg-green-500' : 'bg-red-500'"></span>
@@ -50,7 +68,7 @@
             </a>
         </header>
 
-        <!-- FİLTRE PANELİ -->
+        <!-- FİLTRELER -->
         <div class="space-y-3 mb-6">
             <div class="flex flex-col md:flex-row gap-3 justify-between">
                 <div class="flex gap-2 overflow-x-auto hide-scroll pb-1">
@@ -91,6 +109,7 @@
 
             <template x-for="match in filteredMatches" :key="match.id">
                 <div class="card-bg rounded-xl overflow-hidden hover:border-slate-600 transition-all duration-300 group shadow-lg relative">
+                    <!-- Lig Header -->
                     <div class="bg-[#0f1623] px-4 py-2 flex justify-between items-center border-b border-slate-800/50">
                         <div class="flex items-center gap-2">
                             <span class="w-1 h-3 bg-yellow-500 rounded-full"></span>
@@ -101,6 +120,8 @@
                             <span x-text="formatTime(match.date)"></span>
                         </div>
                     </div>
+                    
+                    <!-- Takımlar -->
                     <div class="p-4 grid grid-cols-7 items-center gap-2">
                         <div class="col-span-3 text-right">
                             <div x-text="match.home" class="text-sm font-bold text-white leading-tight"></div>
@@ -116,28 +137,77 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- ORANLAR GRIDI (SARI KUTU UYGULAMASI) -->
                     <div class="px-2 pb-2">
                         <div class="grid grid-cols-4 sm:grid-cols-7 gap-1 text-center">
-                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center" :class="isBest(match, '1') ? 'glow-warning' : ''">
-                                <span class="text-[9px] text-slate-500">MS 1</span><span class="text-xs font-bold text-white" x-text="match.odds.ms1"></span><span class="text-[9px] opacity-70" x-text="'%' + match.probs['1']"></span>
+                            
+                            <!-- MS 1 -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center transition-all duration-300" 
+                                 :class="isBest(match, '1') ? 'prediction-box' : ''">
+                                <span class="text-[9px] text-slate-500 odd-label">MS 1</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.ms1"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs['1']"></span>
                             </div>
-                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center" :class="isBest(match, 'X') ? 'glow-warning' : ''">
-                                <span class="text-[9px] text-slate-500">MS X</span><span class="text-xs font-bold text-white" x-text="match.odds.msx"></span><span class="text-[9px] opacity-70" x-text="'%' + match.probs['X']"></span>
+
+                            <!-- MS X -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center transition-all duration-300" 
+                                 :class="isBest(match, 'X') ? 'prediction-box' : ''">
+                                <span class="text-[9px] text-slate-500 odd-label">MS X</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.msx"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs['X']"></span>
                             </div>
-                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center" :class="isBest(match, '2') ? 'glow-warning' : ''">
-                                <span class="text-[9px] text-slate-500">MS 2</span><span class="text-xs font-bold text-white" x-text="match.odds.ms2"></span><span class="text-[9px] opacity-70" x-text="'%' + match.probs['2']"></span>
+
+                            <!-- MS 2 -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center transition-all duration-300" 
+                                 :class="isBest(match, '2') ? 'prediction-box' : ''">
+                                <span class="text-[9px] text-slate-500 odd-label">MS 2</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.ms2"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs['2']"></span>
                             </div>
-                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center" :class="isBestKG(match, 'yes') ? 'glow-success' : ''">
-                                <span class="text-[9px] text-slate-500">KG VAR</span><span class="text-xs font-bold text-white" x-text="match.odds.kgvar"></span><span class="text-[9px] opacity-70" x-text="'%' + match.probs.btts"></span>
+
+                            <!-- KG VAR -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center transition-all duration-300" 
+                                 :class="isBestKG(match, 'yes') ? 'prediction-box' : ''">
+                                <span class="text-[9px] text-slate-500 odd-label">KG VAR</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.kgvar"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs.btts"></span>
                             </div>
-                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center hidden sm:flex" :class="isBestKG(match, 'no') ? 'glow-warning' : ''">
-                                <span class="text-[9px] text-slate-500">KG YOK</span><span class="text-xs font-bold text-white" x-text="match.odds.kgyok"></span><span class="text-[9px] opacity-70" x-text="'%' + (100-match.probs.btts).toFixed(0)"></span>
+
+                            <!-- KG YOK -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center hidden sm:flex transition-all duration-300" 
+                                 :class="isBestKG(match, 'no') ? 'prediction-box' : ''">
+                                <span class="text-[9px] text-slate-500 odd-label">KG YOK</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.kgyok"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + (100-match.probs.btts).toFixed(0)"></span>
                             </div>
-                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center" :class="isBestOver(match) ? 'glow-success' : ''">
-                                <span class="text-[9px] text-slate-500">2.5 ÜST</span><span class="text-xs font-bold text-white" x-text="match.odds.ust"></span><span class="text-[9px] opacity-70" x-text="'%' + match.probs.over"></span>
+
+                            <!-- 2.5 ÜST -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center transition-all duration-300" 
+                                 :class="isBestOver(match) ? 'prediction-box' : ''">
+                                <span class="text-[9px] text-slate-500 odd-label">2.5 ÜST</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.ust"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs.over"></span>
                             </div>
-                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center hidden sm:flex">
-                                <span class="text-[9px] text-slate-500">2.5 ALT</span><span class="text-xs font-bold text-white" x-text="match.odds.alt"></span><span class="text-[9px] opacity-70" x-text="'%' + (100-match.probs.over).toFixed(0)"></span>
+
+                            <!-- 2.5 ALT -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center hidden sm:flex transition-all duration-300">
+                                <span class="text-[9px] text-slate-500">2.5 ALT</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.alt"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + (100-match.probs.over).toFixed(0)"></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Mobil için gizli kalanlar -->
+                        <div class="grid grid-cols-2 gap-1 mt-1 sm:hidden">
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex items-center justify-between px-3 transition-all duration-300"
+                                 :class="isBestKG(match, 'no') ? 'prediction-box' : ''">
+                                <span class="text-[9px] text-slate-500 odd-label">KG YOK</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.kgyok"></span>
+                            </div>
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex items-center justify-between px-3">
+                                <span class="text-[9px] text-slate-500 odd-label">2.5 ALT</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.alt"></span>
                             </div>
                         </div>
                     </div>
@@ -160,23 +230,10 @@
                 
                 initSocket() {
                     this.generateNextDays();
-                    
-                    // Socket Bağlantısı
                     this.socket = io();
-                    
-                    this.socket.on('connect', () => {
-                        this.connected = true;
-                        console.log("Socket Bağlandı!");
-                    });
-                    
-                    this.socket.on('disconnect', () => {
-                        this.connected = false;
-                        console.log("Socket Koptu!");
-                    });
-
-                    // SUNUCUDAN GELEN VERİ PAKETİ
+                    this.socket.on('connect', () => { this.connected = true; console.log("Socket Bağlandı!"); });
+                    this.socket.on('disconnect', () => { this.connected = false; });
                     this.socket.on('update_matches', (data) => {
-                        console.log("Yeni Veri Geldi:", data.length, "Maç");
                         this.matches = data;
                         this.loading = false;
                         this.applyFilters();
@@ -193,30 +250,24 @@
                         this.nextDays.push({ name: i === 0 ? 'Bugün' : days[d.getDay()], num: display, val: val });
                     }
                 },
-                // Frontend Filtreleme & Sıralama
                 applyFilters() {
                     let data = [...this.matches];
-
-                    if (this.filter.date !== 'all') {
-                        data = data.filter(m => m.date.startsWith(this.filter.date));
-                    }
+                    if (this.filter.date !== 'all') data = data.filter(m => m.date.startsWith(this.filter.date));
                     if (this.filter.cat === 'home') data = data.filter(m => m.probs['1'] > 50);
                     if (this.filter.cat === 'over') data = data.filter(m => m.probs['over'] > 55);
                     if (this.filter.cat === 'btts') data = data.filter(m => m.probs['btts'] > 55);
 
-                    // Sıralama (Backend'de yapıyorduk ama artık veri ham geliyor, burada sıralayalım)
                     if(this.filter.sort === 'prob_high') {
                         data.sort((a, b) => Math.max(b.probs['1'], b.probs['X'], b.probs['2']) - Math.max(a.probs['1'], a.probs['X'], a.probs['2']));
                     } else if(this.filter.sort === 'prob_over') {
                         data.sort((a, b) => b.probs.over - a.probs.over);
                     } else {
-                        // Tarihe göre
                         data.sort((a, b) => a.date.localeCompare(b.date));
                     }
-
                     this.filteredMatches = data;
                 },
                 formatTime(dateStr) { return dateStr.split(' ')[1] || dateStr; },
+                // SADECE %50+ İHTİMALLERİ SARI YAP
                 isBest(match, type) {
                     const p = match.probs;
                     const max = Math.max(p['1'], p['X'], p['2']);
@@ -230,14 +281,11 @@
                 }
             }
         }
-        
-        // Filtreleri izle
         document.addEventListener('alpine:init', () => {
             Alpine.effect(() => {
                 const root = document.querySelector('[x-data]');
-                if(root && root._x_dataStack) {
-                    const data = root._x_dataStack[0];
-                    if(data.matches.length > 0) data.applyFilters();
+                if(root && root._x_dataStack && root._x_dataStack[0].matches.length > 0) {
+                    root._x_dataStack[0].applyFilters();
                 }
             });
         });
