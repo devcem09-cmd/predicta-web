@@ -265,11 +265,17 @@ def index(): return render_template('index.html')
 @app.route('/history')
 def history_page():
     with sqlite3.connect(DB_PATH) as conn:
-        conn.row_factory = sqlite3.Row
+        # Veriyi sözlük (dictionary) formatında çekmek için
+        conn.row_factory = sqlite3.Row 
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM history ORDER BY id DESC LIMIT 100")
+        cursor.execute("SELECT * FROM history ORDER BY id DESC LIMIT 500") # 500 kayıt yeterli
         rows = cursor.fetchall()
-    return render_template('history.html', matches=rows)
+        
+        # Row objelerini Python sözlüğüne çevir
+        matches_list = [dict(row) for row in rows]
+
+    # matches verisini template'e gönderiyoruz
+    return render_template('history.html', matches=matches_list)
 
 @app.route('/api/matches/live')
 def live():
@@ -328,3 +334,4 @@ def live():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 10000))
     app.run(host='0.0.0.0', port=port)
+
