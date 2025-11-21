@@ -3,68 +3,97 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Predicta PRO | Ultimate</title>
+    <title>Predicta PRO | Canlı Analiz</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- İkonlar için FontAwesome (Hızlı çözüm) -->
+    <!-- Fontlar ve İkonlar -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <!-- Flask static klasöründen logo çekme -->
-    <img src="{{ url_for('static', filename='logo.jpg') }}" alt="Predicta Pro Logo" class="h-10 w-auto">
+
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #0b1121; color: #e2e8f0; }
-        /* Görseldeki Scrollbar Gizleme */
+        /* Scrollbar Gizleme */
         .hide-scroll::-webkit-scrollbar { display: none; }
         .hide-scroll { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Özel Gradientler */
+        /* Kart ve Buton Stilleri */
+        .card-bg { background: #151f32; border: 1px solid #1e293b; }
         .btn-active-yellow { background: #fbbf24; color: #000; border: none; box-shadow: 0 0 15px rgba(251, 191, 36, 0.3); }
         .btn-active-purple { background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; border: none; }
-        .card-bg { background: #151f32; border: 1px solid #1e293b; }
+        
+        /* Parlama Efekti (Yüksek İhtimal) */
+        .glow-success { background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4); color: #4ade80; }
+        .glow-warning { background: rgba(250, 204, 21, 0.15); border: 1px solid rgba(250, 204, 21, 0.4); color: #facc15; }
     </style>
 </head>
-<body class="min-h-screen pb-20">
+<body class="min-h-screen pb-20 selection:bg-yellow-500 selection:text-black">
 
-    <div x-data="appData()" x-init="initApp()" class="container mx-auto px-2 max-w-5xl pt-4">
+    <div x-data="appData()" x-init="initApp()" class="container mx-auto px-2 max-w-5xl pt-2">
 
-        <!-- FİLTRE ÜST BAR (GÖRSELDEKİ GİBİ) -->
-        <div class="sticky top-0 z-40 bg-[#0b1121]/95 backdrop-blur-md py-2 space-y-3 border-b border-slate-800 mb-4">
-            
-            <!-- 1. Satır: Sıralama ve Günler -->
-            <div class="flex flex-col md:flex-row gap-3 justify-between items-start md:items-center">
+        <!-- HEADER -->
+        <header class="py-4 flex justify-between items-center border-b border-slate-800 mb-4 sticky top-0 z-50 bg-[#0b1121]/95 backdrop-blur-md">
+            <div>
+                <h1 class="text-2xl font-extrabold text-yellow-500 tracking-tighter italic">PREDICTA<span class="text-white not-italic">PRO</span></h1>
+                <div class="flex items-center gap-2">
+                    <span class="relative flex h-2 w-2">
+                      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span class="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                    <p class="text-[10px] text-slate-400 font-mono">CANLI AKIŞ AKTİF</p>
+                </div>
+            </div>
+
+            <!-- GEÇMİŞ BUTONU -->
+            <a href="/history" class="group flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 px-4 py-2 rounded-xl transition-all active:scale-95">
+                <div class="bg-slate-900 p-1.5 rounded-lg group-hover:text-yellow-500 transition">
+                    <i class="fa-solid fa-clock-rotate-left"></i>
+                </div>
+                <div class="hidden md:block text-xs font-bold">
+                    <div>GEÇMİŞ</div>
+                    <div class="text-[9px] text-slate-500 font-normal">Sonuçlar & İstatistik</div>
+                </div>
+            </a>
+        </header>
+
+        <!-- FİLTRE PANELİ -->
+        <div class="space-y-3 mb-6">
+            <!-- Üst Satır: Sıralama ve Günler -->
+            <div class="flex flex-col md:flex-row gap-3 justify-between">
                 
                 <!-- Sıralama -->
-                <div class="flex items-center gap-2 overflow-x-auto hide-scroll w-full md:w-auto">
-                    <span class="text-xs font-bold text-slate-400 whitespace-nowrap"><i class="fa-solid fa-chart-simple mr-1"></i>SIRALAMA:</span>
-                    
-                    <button @click="filter.sort = 'default'; fetchMatches()" 
+                <div class="flex gap-2 overflow-x-auto hide-scroll pb-1">
+                    <button @click="setSort('default')" 
                         :class="filter.sort === 'default' ? 'btn-active-yellow font-bold' : 'border border-slate-700 text-slate-400 hover:border-slate-500'"
-                        class="px-4 py-1.5 rounded-lg text-xs transition flex items-center gap-2 whitespace-nowrap">
-                        <i class="fa-solid fa-bolt"></i> Varsayılan
+                        class="px-4 py-2 rounded-lg text-xs transition whitespace-nowrap flex items-center gap-2">
+                        <i class="fa-solid fa-sort"></i> Varsayılan
                     </button>
-
-                    <button @click="filter.sort = 'prob_high'; fetchMatches()" 
-                        :class="filter.sort === 'prob_high' ? 'bg-blue-900/50 border-blue-500 text-blue-400' : 'border border-slate-700 text-slate-400'"
-                        class="px-3 py-1.5 rounded-lg text-xs border transition whitespace-nowrap">
-                        <i class="fa-solid fa-arrow-up mr-1"></i> Güven (Yüksek)
+                    <button @click="setSort('prob_high')" 
+                        :class="filter.sort === 'prob_high' ? 'bg-blue-600 text-white border-blue-500 shadow-lg shadow-blue-900/50' : 'border border-slate-700 text-slate-400'"
+                        class="px-4 py-2 rounded-lg text-xs transition whitespace-nowrap flex items-center gap-2">
+                        <i class="fa-solid fa-star"></i> Yüksek Güven
+                    </button>
+                    <button @click="setSort('prob_over')" 
+                        :class="filter.sort === 'prob_over' ? 'bg-green-600 text-white border-green-500 shadow-lg shadow-green-900/50' : 'border border-slate-700 text-slate-400'"
+                        class="px-4 py-2 rounded-lg text-xs transition whitespace-nowrap flex items-center gap-2">
+                        <i class="fa-solid fa-futbol"></i> Gol Beklentisi
                     </button>
                 </div>
 
-                <!-- Günler (Dinamik Tarih) -->
-                <div class="flex items-center gap-2 overflow-x-auto hide-scroll w-full md:w-auto pl-1">
-                    <span class="text-xs font-bold text-slate-400 whitespace-nowrap"><i class="fa-regular fa-calendar mr-1"></i>GÜNLER:</span>
-                    
-                    <button @click="filter.date = 'all'; fetchMatches()"
-                        :class="filter.date === 'all' ? 'btn-active-purple font-bold shadow-lg shadow-purple-900/20' : 'border border-slate-700 text-slate-400'"
-                        class="px-4 py-1.5 rounded-lg text-xs transition flex items-center gap-2 whitespace-nowrap">
-                        <i class="fa-regular fa-calendar-check"></i> Tümü
+                <!-- Tarih -->
+                <div class="flex gap-2 overflow-x-auto hide-scroll pb-1">
+                    <button @click="filter.date = 'all'"
+                        :class="filter.date === 'all' ? 'bg-slate-700 text-white border-slate-500' : 'card-bg text-slate-500 border-slate-800'"
+                        class="px-3 py-1 rounded-lg text-xs border flex flex-col items-center min-w-[50px] transition">
+                        <span class="text-[9px] opacity-70">Tümü</span>
+                        <i class="fa-solid fa-calendar-days mt-0.5"></i>
                     </button>
-
-                    <!-- JS ile Gelecek Günler -->
+                    
                     <template x-for="day in nextDays" :key="day.val">
-                        <button @click="filter.date = day.val; fetchMatches()"
-                            :class="filter.date === day.val ? 'bg-slate-700 text-white border-slate-500' : 'card-bg text-slate-500 hover:text-slate-300'"
-                            class="px-3 py-1.5 rounded-lg text-xs border border-slate-800 flex flex-col items-center min-w-[50px] transition">
+                        <button @click="filter.date = day.val"
+                            :class="filter.date === day.val ? 'bg-slate-700 text-white border-slate-500' : 'card-bg text-slate-500 border-slate-800'"
+                            class="px-3 py-1 rounded-lg text-xs border flex flex-col items-center min-w-[50px] transition hover:border-slate-600">
                             <span class="text-[9px] opacity-70" x-text="day.name"></span>
                             <span class="font-bold" x-text="day.num"></span>
                         </button>
@@ -72,142 +101,148 @@
                 </div>
             </div>
 
-            <!-- 2. Satır: Kategoriler (Icons) -->
-            <div class="flex items-center gap-2 overflow-x-auto hide-scroll py-1">
-                <button @click="filter.cat = 'all'; fetchMatches()" 
-                    :class="filter.cat === 'all' ? 'border-yellow-500 text-yellow-500 bg-yellow-500/10' : 'border-slate-700 text-slate-400'"
-                    class="px-4 py-2 rounded-full border text-xs font-bold whitespace-nowrap transition flex items-center gap-2">
-                    <i class="fa-regular fa-futbol"></i> Tüm Maçlar
-                </button>
-
-                <button @click="filter.cat = 'home'; fetchMatches()" 
-                    :class="filter.cat === 'home' ? 'border-blue-500 text-blue-400' : 'border-transparent text-slate-500 hover:bg-slate-800'"
-                    class="px-3 py-2 rounded-full border text-xs font-medium whitespace-nowrap transition flex items-center gap-2">
-                    <i class="fa-solid fa-house"></i> Ev Sahibi
-                </button>
-
-                <button @click="filter.cat = 'over'; fetchMatches()" 
-                    :class="filter.cat === 'over' ? 'border-green-500 text-green-400' : 'border-transparent text-slate-500 hover:bg-slate-800'"
-                    class="px-3 py-2 rounded-full border text-xs font-medium whitespace-nowrap transition flex items-center gap-2">
-                    <i class="fa-solid fa-arrow-trend-up"></i> Üst 2.5
-                </button>
-
-                <button @click="filter.cat = 'btts'; fetchMatches()" 
-                    :class="filter.cat === 'btts' ? 'border-red-500 text-red-400' : 'border-transparent text-slate-500 hover:bg-slate-800'"
-                    class="px-3 py-2 rounded-full border text-xs font-medium whitespace-nowrap transition flex items-center gap-2">
-                    <i class="fa-solid fa-handshake-simple"></i> KG Var
-                </button>
-                
-                <div class="h-6 w-px bg-slate-700 mx-1"></div>
-                
-                <span class="text-[10px] text-slate-500 ml-1 flex items-center gap-1">
-                    <i class="fa-solid fa-wand-magic-sparkles text-yellow-500"></i> AI Engine v2.1
-                </span>
+            <!-- Kategori Filtreleri -->
+            <div class="flex gap-2 overflow-x-auto hide-scroll border-t border-slate-800 pt-3">
+                <button @click="filter.cat = 'all'" :class="filter.cat === 'all' ? 'bg-yellow-500 text-black font-bold' : 'bg-slate-800 text-slate-400'" class="px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition">Tümü</button>
+                <button @click="filter.cat = 'home'" :class="filter.cat === 'home' ? 'bg-blue-500 text-white font-bold' : 'bg-slate-800 text-slate-400'" class="px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition">🏠 Ev Sahibi</button>
+                <button @click="filter.cat = 'over'" :class="filter.cat === 'over' ? 'bg-green-500 text-white font-bold' : 'bg-slate-800 text-slate-400'" class="px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition">⚽ Bol Gol</button>
+                <button @click="filter.cat = 'btts'" :class="filter.cat === 'btts' ? 'bg-red-500 text-white font-bold' : 'bg-slate-800 text-slate-400'" class="px-3 py-1.5 rounded-full text-xs whitespace-nowrap transition">🤝 KG Var</button>
             </div>
         </div>
 
-        <!-- MAÇ KARTLARI -->
-        <div class="space-y-3">
+        <!-- MAÇ LİSTESİ -->
+        <div class="space-y-4">
             <template x-if="loading">
-                <div class="flex justify-center py-10">
-                    <i class="fa-solid fa-circle-notch fa-spin text-3xl text-yellow-500"></i>
+                <div class="flex flex-col items-center justify-center py-12">
+                    <i class="fa-solid fa-circle-notch fa-spin text-3xl text-yellow-500 mb-3"></i>
+                    <p class="text-slate-500 text-sm animate-pulse">Maçlar analiz ediliyor...</p>
                 </div>
             </template>
 
-            <!-- Veri Yoksa -->
-            <template x-if="!loading && matches.length === 0">
-                <div class="text-center py-12 text-slate-500">
-                    <i class="fa-regular fa-face-frown text-4xl mb-3"></i>
-                    <p>Bu filtreye uygun maç bulunamadı.</p>
+            <template x-if="!loading && filteredMatches.length === 0">
+                <div class="text-center py-12 bg-slate-900/50 rounded-xl border border-dashed border-slate-800">
+                    <i class="fa-regular fa-folder-open text-4xl text-slate-600 mb-3"></i>
+                    <p class="text-slate-400">Kriterlere uygun maç bulunamadı.</p>
                 </div>
             </template>
 
-            <template x-for="match in matches" :key="match.id">
-                <div class="card-bg rounded-xl overflow-hidden hover:border-slate-600 transition group">
+            <template x-for="match in filteredMatches" :key="match.id">
+                <div class="card-bg rounded-xl overflow-hidden hover:border-slate-600 transition-all duration-300 group shadow-lg relative">
                     
-                    <!-- Kart Başlık -->
-                    <div class="bg-[#0f1623] p-3 flex justify-between items-center border-b border-slate-800/50">
+                    <!-- Lig ve Tarih Header -->
+                    <div class="bg-[#0f1623] px-4 py-2 flex justify-between items-center border-b border-slate-800/50">
                         <div class="flex items-center gap-2">
-                            <span class="w-1 h-4 bg-yellow-500 rounded-full"></span>
-                            <span x-text="match.league" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider"></span>
+                            <span class="w-1 h-3 bg-yellow-500 rounded-full"></span>
+                            <span x-text="match.league" class="text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate max-w-[150px]"></span>
                         </div>
-                        <div class="flex items-center gap-2 text-[11px] text-slate-500 font-mono">
+                        <div class="flex items-center gap-1 text-[10px] text-slate-500 font-mono bg-slate-900 px-2 py-0.5 rounded">
                             <i class="fa-regular fa-clock"></i>
-                            <span x-text="formatDate(match.date)"></span>
+                            <span x-text="formatTime(match.date)"></span>
                         </div>
                     </div>
 
                     <!-- Takımlar -->
-                    <div class="p-4 flex items-center justify-between relative">
-                        <!-- Arka plan efekti -->
-                        <div class="absolute inset-0 bg-gradient-to-r from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition duration-500"></div>
-
-                        <div class="flex-1 text-left z-10">
-                            <div x-text="match.home" class="text-sm md:text-base font-bold text-white"></div>
+                    <div class="p-4 grid grid-cols-7 items-center gap-2">
+                        <div class="col-span-3 text-right">
+                            <div x-text="match.home" class="text-sm font-bold text-white leading-tight"></div>
+                            <!-- Ev Gol Gücü Barı -->
+                            <div class="h-1 w-full bg-slate-800 rounded-full mt-1.5 ml-auto max-w-[80px]">
+                                <div class="h-full bg-blue-500 rounded-full" :style="`width: ${match.probs['1']}%`"></div>
+                            </div>
                         </div>
                         
-                        <div class="px-4 text-center z-10">
-                            <div class="text-[10px] font-bold text-slate-600 bg-slate-900 px-2 py-1 rounded border border-slate-800">VS</div>
+                        <div class="col-span-1 flex justify-center">
+                            <span class="text-[10px] font-bold text-slate-500 bg-slate-900 px-1.5 py-0.5 rounded">VS</span>
                         </div>
 
-                        <div class="flex-1 text-right z-10">
-                            <div x-text="match.away" class="text-sm md:text-base font-bold text-white"></div>
-                        </div>
-                    </div>
-
-                    <!-- İstatistik Barları (Minimal) -->
-                    <div class="px-4 pb-3 grid grid-cols-2 gap-4">
-                        <!-- Ev Gol Beklentisi -->
-                        <div>
-                            <div class="flex justify-between text-[10px] text-slate-400 mb-1">
-                                <span>Ev Gol Beklentisi</span>
-                                <span class="text-yellow-500 font-bold" x-text="match.probs['1'] + '%'"></span>
-                            </div>
-                            <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                <div class="h-full bg-gradient-to-r from-yellow-600 to-yellow-400" :style="`width: ${match.probs['1']}%`"></div>
-                            </div>
-                        </div>
-                        <!-- 2.5 Üst Beklentisi -->
-                        <div>
-                            <div class="flex justify-between text-[10px] text-slate-400 mb-1">
-                                <span>2.5 Üst İhtimali</span>
-                                <span class="text-green-500 font-bold" x-text="match.probs['over'] + '%'"></span>
-                            </div>
-                            <div class="h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                                <div class="h-full bg-gradient-to-r from-green-600 to-green-400" :style="`width: ${match.probs['over']}%`"></div>
+                        <div class="col-span-3 text-left">
+                            <div x-text="match.away" class="text-sm font-bold text-white leading-tight"></div>
+                            <!-- Dep Gol Gücü Barı -->
+                            <div class="h-1 w-full bg-slate-800 rounded-full mt-1.5 mr-auto max-w-[80px]">
+                                <div class="h-full bg-red-500 rounded-full" :style="`width: ${match.probs['2']}%`"></div>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Oranlar Footer -->
-                    <div class="bg-[#0d1320] px-2 py-2 grid grid-cols-5 gap-1 text-center border-t border-slate-800">
-                        <div class="p-1 rounded" :class="isHighProb(match.probs['1']) ? 'bg-yellow-500/10 border border-yellow-500/30' : ''">
-                            <div class="text-[9px] text-slate-500">MS 1</div>
-                            <div class="text-xs font-bold text-white" x-text="match.odds.ms1"></div>
+                    <!-- ORANLAR GRİDİ (TÜM İSTENENLER) -->
+                    <div class="px-2 pb-2">
+                        <div class="grid grid-cols-4 sm:grid-cols-7 gap-1 text-center">
+                            
+                            <!-- MS 1 -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center"
+                                 :class="isBest(match, '1') ? 'glow-warning' : ''">
+                                <span class="text-[9px] text-slate-500">MS 1</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.ms1"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs['1']"></span>
+                            </div>
+
+                            <!-- MS X -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center"
+                                 :class="isBest(match, 'X') ? 'glow-warning' : ''">
+                                <span class="text-[9px] text-slate-500">MS X</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.msx"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs['X']"></span>
+                            </div>
+
+                            <!-- MS 2 -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center"
+                                 :class="isBest(match, '2') ? 'glow-warning' : ''">
+                                <span class="text-[9px] text-slate-500">MS 2</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.ms2"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs['2']"></span>
+                            </div>
+
+                            <!-- KG VAR (Mobilde ayrı satıra düşebilir) -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center"
+                                 :class="isBestKG(match, 'yes') ? 'glow-success' : ''">
+                                <span class="text-[9px] text-slate-500">KG VAR</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.kgvar"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs.btts"></span>
+                            </div>
+
+                            <!-- KG YOK -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center hidden sm:flex"
+                                 :class="isBestKG(match, 'no') ? 'glow-warning' : ''">
+                                <span class="text-[9px] text-slate-500">KG YOK</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.kgyok"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + (100-match.probs.btts).toFixed(0)"></span>
+                            </div>
+
+                            <!-- 2.5 ÜST -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center"
+                                 :class="isBestOver(match) ? 'glow-success' : ''">
+                                <span class="text-[9px] text-slate-500">2.5 ÜST</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.ust"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + match.probs.over"></span>
+                            </div>
+
+                            <!-- 2.5 ALT -->
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex flex-col justify-center hidden sm:flex">
+                                <span class="text-[9px] text-slate-500">2.5 ALT</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.alt"></span>
+                                <span class="text-[9px] opacity-70" x-text="'%' + (100-match.probs.over).toFixed(0)"></span>
+                            </div>
                         </div>
-                        <div class="p-1 rounded">
-                            <div class="text-[9px] text-slate-500">MS X</div>
-                            <div class="text-xs font-bold text-white" x-text="match.odds.msx"></div>
-                        </div>
-                        <div class="p-1 rounded" :class="isHighProb(match.probs['2']) ? 'bg-yellow-500/10 border border-yellow-500/30' : ''">
-                            <div class="text-[9px] text-slate-500">MS 2</div>
-                            <div class="text-xs font-bold text-white" x-text="match.odds.ms2"></div>
-                        </div>
-                        <div class="p-1 rounded" :class="isHighProb(match.probs['over']) ? 'bg-green-500/10 border border-green-500/30' : ''">
-                            <div class="text-[9px] text-slate-500">ÜST</div>
-                            <div class="text-xs font-bold text-white" x-text="match.odds.ust"></div>
-                        </div>
-                        <div class="p-1 rounded" :class="isHighProb(match.probs['btts']) ? 'bg-red-500/10 border border-red-500/30' : ''">
-                            <div class="text-[9px] text-slate-500">KG VAR</div>
-                            <div class="text-xs font-bold text-white" x-text="match.odds.kgvar"></div>
+                        
+                        <!-- Mobilde Gizlenenlerin Devamı (Sadece küçük ekranda görünür) -->
+                        <div class="grid grid-cols-2 gap-1 mt-1 sm:hidden">
+                             <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex items-center justify-between px-3">
+                                <span class="text-[9px] text-slate-500">KG YOK</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.kgyok"></span>
+                            </div>
+                            <div class="rounded p-1 border border-slate-800 bg-slate-900/50 flex items-center justify-between px-3">
+                                <span class="text-[9px] text-slate-500">2.5 ALT</span>
+                                <span class="text-xs font-bold text-white" x-text="match.odds.alt"></span>
+                            </div>
                         </div>
                     </div>
+
                 </div>
             </template>
         </div>
 
         <div class="text-center py-6 text-xs text-slate-600">
-            Predicta PRO &copy; 2024 - AI Betting Analysis
+            Predicta PRO &copy; 2024 - AI Betting Intelligence
         </div>
 
     </div>
@@ -216,6 +251,7 @@
         function appData() {
             return {
                 matches: [],
+                filteredMatches: [],
                 loading: false,
                 nextDays: [],
                 filter: {
@@ -226,6 +262,8 @@
                 initApp() {
                     this.generateNextDays();
                     this.fetchMatches();
+                    // Her 60 saniyede bir yenile
+                    setInterval(() => this.fetchMatches(), 60000);
                 },
                 generateNextDays() {
                     const days = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
@@ -233,52 +271,88 @@
                     for(let i=0; i<5; i++) {
                         let d = new Date(today);
                         d.setDate(today.getDate() + i);
+                        // Tarih formatı YYYY-MM-DD
+                        let val = d.toISOString().split('T')[0];
+                        // Gösterilecek format (14/06 gibi)
+                        let display = d.getDate() + '/' + (d.getMonth()+1);
+                        
                         this.nextDays.push({
-                            name: days[d.getDay()],
-                            num: d.getDate() + '/' + (d.getMonth()+1),
-                            val: d.toISOString().split('T')[0] // YYYY-MM-DD formatı filtre için
+                            name: i === 0 ? 'Bugün' : days[d.getDay()],
+                            num: display,
+                            val: val 
                         });
                     }
+                },
+                setSort(type) {
+                    this.filter.sort = type;
+                    this.fetchMatches(); // Backend'den yeniden çek ve sırala
                 },
                 async fetchMatches() {
                     this.loading = true;
                     try {
-                        // Gerçek API entegrasyonu (Query String oluşturma)
-                        let params = new URLSearchParams();
-                        params.append('sort_by', this.filter.sort);
-                        
-                        // JS tarafında filtreleme de yapabiliriz ama backend daha iyi
-                        const res = await fetch(`/api/matches?${params.toString()}`);
-                        let data = await res.json();
-
-                        // Frontend Filtreleme (Kategori ve Tarih için)
-                        // Not: Gerçek projede bunları backend'e parametre olarak atmalısın
-                        if (this.filter.cat === 'home') data = data.filter(m => m.probs['1'] > 50);
-                        if (this.filter.cat === 'over') data = data.filter(m => m.probs['over'] > 55);
-                        if (this.filter.cat === 'btts') data = data.filter(m => m.probs['btts'] > 55);
-                        
-                        // Tarih Filtresi (Basit string match)
-                        if (this.filter.date !== 'all') {
-                            // Gelen veri formatı YYYY-MM-DD ise:
-                            data = data.filter(m => m.date.includes(this.filter.date));
-                        }
-
+                        const res = await fetch(`/api/matches?sort_by=${this.filter.sort}`);
+                        const data = await res.json();
                         this.matches = data;
+                        this.applyFilters();
                     } catch (e) {
                         console.error("Hata:", e);
                     } finally {
                         this.loading = false;
                     }
                 },
-                formatDate(dateStr) {
-                    // Basit saat formatı
+                applyFilters() {
+                    // JSON verisi üzerinde Frontend Filtreleme
+                    let data = this.matches;
+
+                    // 1. Tarih Filtresi (String eşleşmesi)
+                    // Backend tarihi "YYYY-MM-DD HH:MM" formatında gönderiyor
+                    if (this.filter.date !== 'all') {
+                        data = data.filter(m => m.date.startsWith(this.filter.date));
+                    }
+
+                    // 2. Kategori Filtresi
+                    if (this.filter.cat === 'home') data = data.filter(m => m.probs['1'] > 50);
+                    if (this.filter.cat === 'over') data = data.filter(m => m.probs['over'] > 55);
+                    if (this.filter.cat === 'btts') data = data.filter(m => m.probs['btts'] > 55);
+
+                    this.filteredMatches = data;
+                },
+                formatTime(dateStr) {
+                    // "2024-06-14 15:00" -> "15:00"
                     return dateStr.split(' ')[1] || dateStr;
                 },
-                isHighProb(val) {
-                    return val > 55;
+                // --- Görsel Yardımcılar ---
+                isBest(match, type) {
+                    const p = match.probs;
+                    const max = Math.max(p['1'], p['X'], p['2']);
+                    // Sadece en yüksek ihtimalse ve %50'den büyükse yak
+                    return p[type] === max && p[type] > 50;
+                },
+                isBestOver(match) {
+                    return match.probs.over > 55;
+                },
+                isBestKG(match, type) {
+                    if(type === 'yes') return match.probs.btts > 55;
+                    if(type === 'no') return match.probs.btts < 45;
+                    return false;
                 }
             }
         }
+        
+        // Filtreler değiştiğinde otomatik uygula
+        document.addEventListener('alpine:init', () => {
+            Alpine.effect(() => {
+                // Alpine store'a erişim (basitçe data içindeki applyFilters'ı tetikle)
+                // Not: x-data scope içinde zaten watcher gibi çalışıyor butonlar
+                // Ama tarih ve kategori için manuel tetikleme gerekebilir
+                const root = document.querySelector('[x-data]');
+                if(root && root._x_dataStack) {
+                    const data = root._x_dataStack[0];
+                    // filter objesini izle
+                    if(data.matches.length > 0) data.applyFilters();
+                }
+            });
+        });
     </script>
 </body>
 </html>
