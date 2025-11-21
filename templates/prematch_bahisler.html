@@ -194,7 +194,7 @@
 <body>
   <div class="header">
     <h2>📊 Yüzdelik Tahmin Listesi</h2>
-    <a href="prematch.html" class="back-btn">⬅ Geri Dön</a>
+    <a href="/prematch" class="back-btn">⬅ Geri Dön</a>
   </div>
   
   <div class="sub-tabs" id="subOptions"></div>
@@ -230,7 +230,7 @@
 
     function loadMatches(option) {
       selectedOption = option;
-      matchList.innerHTML = '<div class="loading">Maçlar yükleniyor...</div>';
+      matchList.innerHTML = '<div class="loading">⏳ Maçlar yükleniyor...</div>';
       
       // Aktif butonu güncelle
       document.querySelectorAll('.sub-tabs button').forEach(btn => {
@@ -240,11 +240,27 @@
         }
       });
       
-      fetch(`/prematch/${type}`)
-        .then(res => res.json())
+      const apiUrl = `/prematch/${type}`;
+      console.log('API çağrısı:', apiUrl);
+      
+      fetch(apiUrl)
+        .then(res => {
+          console.log('API Status:', res.status);
+          if (!res.ok) {
+            throw new Error(`HTTP ${res.status}`);
+          }
+          return res.json();
+        })
         .then(data => {
-          if (!data.success || !data.matches || data.matches.length === 0) {
-            matchList.innerHTML = '<div class="no-data">Şu an için tahmin edilebilir maç bulunamadı.</div>';
+          console.log('API Response:', data);
+          
+          if (!data.success) {
+            matchList.innerHTML = `<div class="no-data">⚠️ ${data.error || 'Veri alınamadı'}</div>`;
+            return;
+          }
+          
+          if (!data.matches || data.matches.length === 0) {
+            matchList.innerHTML = '<div class="no-data">📭 Şu an için tahmin edilebilir maç bulunamadı.<br><br>🔄 Birkaç dakika sonra tekrar deneyin.</div>';
             return;
           }
           
@@ -273,8 +289,9 @@
             let predsHtml = '';
             if (match.prediction) {
               Object.entries(match.prediction).forEach(([key, value]) => {
+                const isSelected = key === option;
                 predsHtml += `
-                  <div class="pred-item ${key === option ? 'highlighted' : ''}">
+                  <div class="pred-item ${isSelected ? 'highlighted' : ''}" style="${isSelected ? 'border: 2px solid #f9d342; background: rgba(249,211,66,0.2);' : ''}">
                     <span class="pred-label">${key}</span>
                     <span class="pred-value">${value}%</span>
                   </div>
@@ -296,8 +313,16 @@
           });
         })
         .catch(err => {
-          console.error('API Hatası:', err);
-          matchList.innerHTML = '<div class="no-data">⚠️ Veriler yüklenirken bir hata oluştu.</div>';
+          console.error('Fetch hatası:', err);
+          matchList.innerHTML = `
+            <div class="no-data">
+              ⚠️ Veriler yüklenirken bir hata oluştu<br><br>
+              <small>${err.message}</small><br><br>
+              <button onclick="loadMatches('${option}')" style="background: #f9d342; color: #0a0a23; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                🔄 Tekrar Dene
+              </button>
+            </div>
+          `;
         });
     }
 
