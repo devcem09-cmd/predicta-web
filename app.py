@@ -2,48 +2,57 @@ import os
 import json
 import logging
 import requests
+import atexit
 from datetime import datetime, timedelta
-from flask import Flask, render_template, jsonify, request
+from functools import lru_cache
+import pandas as pd
+import numpy as np
+from flask import Flask, jsonify, render_template, request
+from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from apscheduler.schedulers.background import BackgroundScheduler
 from scipy.stats import poisson
 from rapidfuzz import process, fuzz
-import pandas as pd
-import atexit
+from dotenv import load_dotenv
 
-# --- AYARLAR & LOGGING ---
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(module)s - %(message)s')
+# --- YAPILANDIRMA ---
+load_dotenv() # .env dosyasını yükle
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CSV_PATH = os.path.join(BASE_DIR, 'data', 'final_unified_dataset.csv')
+TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
+STATIC_DIR = os.path.join(BASE_DIR, 'static')
+
+# Logging Ayarları
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger("PredictaPRO")
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=TEMPLATE_DIR, static_folder=STATIC_DIR)
+CORS(app)
+
+# Veritabanı Ayarları (SQLite)
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///predictapro.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-# --- VERİTABANI MODELLERİ ---
+# --- VERİTABANI MODELİ ---
 class Match(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    code = db.Column(db.String(20), unique=True) # Maç Kodu (Benzersizlik için)
+    code = db.Column(db.String(20), unique=True) # Maç Kodu
     league = db.Column(db.String(50))
     home_team = db.Column(db.String(50))
     away_team = db.Column(db.String(50))
     date = db.Column(db.DateTime)
+    odds = db.Column(db.Text) # JSON formatında oranlar
     
-    # Oranlar (JSON olarak saklayacağız)
-    odds = db.Column(db.Text) 
+    # Tahminler
+    prob_home = db.Column(db.Float, default=0.0)
+    prob_draw = db.Column(db.Float, default=0.0)
+    prob_away = db.Column(db.Float, default=0.0)
+    prob_over_25 = db.Column(db.Float, default=0.0)
+    prob_btts = db.Column(db.Float, default=0.0)
     
-    # İstatistiksel Tahminler
-    prob_home = db.Column(db.Float)
-    prob_draw = db.Column(db.Float)
-    prob_away = db.Column(db.Float)
-    prob_over_25 = db.Column(db.Float)
-    prob_btts = db.Column(db.Float)
-    
-    # Sonuç Takibi
-    status = db.Column(db.String(20), default="Pending") # Pending, Finished
-    score_home = db.Column(db.Integer, nullable=True)
-    score_away = db.Column(db.Integer, nullable=True)
-    is_successful = db.Column(db.Boolean, nullable=True) # Ana tahmin tuttu mu?
+    status = db.Column(db.String(20), default="Pending")
 
     def to_dict(self):
         return {
@@ -53,205 +62,126 @@ class Match(db.Model):
             "home": self.home_team,
             "away": self.away_team,
             "date": self.date.strftime("%Y-%m-%d %H:%M"),
-            "odds": json.loads(self.odds),
+            "odds": json.loads(self.odds) if self.odds else {},
             "probs": {
                 "1": round(self.prob_home * 100, 1),
                 "X": round(self.prob_draw * 100, 1),
                 "2": round(self.prob_away * 100, 1),
                 "over": round(self.prob_over_25 * 100, 1),
                 "btts": round(self.prob_btts * 100, 1)
-            },
-            "status": self.status,
-            "score": f"{self.score_home}-{self.score_away}" if self.score_home is not None else "-"
+            }
         }
 
-# --- TAHMİN MOTORU (PREDICTOR ENGINE) ---
-class PredictorEngine:
+# --- TAHMİN MOTORU ---
+class MatchPredictor:
     def __init__(self):
-        self.stats = {}
-        self.avg_goals = {'home': 1.5, 'away': 1.2}
-        # CSV Yükleme simülasyonu - Gerçek projede burası veritabanından okunmalı
-        self.load_mock_data()
+        self.team_stats = {}
+        self.team_list = []
+        self.avg_home_goals = 1.5
+        self.avg_away_goals = 1.2
+        self.load_database()
 
-    def load_mock_data(self):
-        # NOT: Burayı senin CSV okuma kodunla değiştirebilirsin.
-        # Şimdilik hata vermemesi için boş geçiyorum.
-        pass
+    def load_database(self):
+        logger.info(f"📂 Veritabanı başlatılıyor... Yol: {CSV_PATH}")
+        
+        if not os.path.exists(CSV_PATH):
+            logger.warning(f"⚠️ UYARI: CSV Bulunamadı ({CSV_PATH}). Tahminler çalışmayacak.")
+            return
+
+        try:
+            # SENİN CSV FORMATIN: home_team, away_team, home_score, away_score
+            required_cols = ['home_team', 'away_team', 'home_score', 'away_score']
+            
+            # CSV Okuma (Sadece gerekli sütunlar)
+            df = pd.read_csv(CSV_PATH, usecols=required_cols, encoding='utf-8', on_bad_lines='skip')
+            
+            # Veri Tiplerini Optimize Et
+            df['home_score'] = pd.to_numeric(df['home_score'], errors='coerce').fillna(0).astype('int32')
+            df['away_score'] = pd.to_numeric(df['away_score'], errors='coerce').fillna(0).astype('int32')
+            
+            # İstatistikleri Hesapla
+            self._calculate_stats(df)
+            
+            # Fuzzy search listesi
+            self.team_list = list(self.team_stats.keys())
+            
+            # Belleği Temizle
+            del df
+            logger.info(f"✅ Veritabanı Hazır. {len(self.team_stats)} takım yüklendi.")
+            
+        except Exception as e:
+            logger.error(f"❌ DB Hata: {e}")
+
+    def _calculate_stats(self, df):
+        if df.empty: return
+        
+        self.avg_home_goals = df['home_score'].mean() or 1.5
+        self.avg_away_goals = df['away_score'].mean() or 1.2
+        
+        # Pandas GroupBy ile Hızlı Hesaplama
+        home_stats = df.groupby('home_team')['home_score'].agg(['mean', 'count'])
+        home_conceded = df.groupby('home_team')['away_score'].mean()
+        
+        away_stats = df.groupby('away_team')['away_score'].agg(['mean', 'count'])
+        away_conceded = df.groupby('away_team')['home_score'].mean()
+        
+        all_teams = set(home_stats.index) | set(away_stats.index)
+        
+        for team in all_teams:
+            if team not in home_stats.index or team not in away_stats.index: continue
+            
+            # En az 3 maç verisi olsun
+            if home_stats.loc[team, 'count'] < 3 or away_stats.loc[team, 'count'] < 3: continue
+
+            self.team_stats[team] = {
+                'att_h': home_stats.loc[team, 'mean'] / self.avg_home_goals,
+                'def_h': home_conceded.loc[team] / self.avg_away_goals,
+                'att_a': away_stats.loc[team, 'mean'] / self.avg_away_goals,
+                'def_a': away_conceded.loc[team] / self.avg_home_goals
+            }
+
+    @lru_cache(maxsize=2048)
+    def find_team_cached(self, name):
+        if not name or not self.team_list: return None
+        # Basit temizlik
+        clean_name = name.lower().replace('sk', '').replace('fk', '').replace('fc', '').strip()
+        # Eşleşme bul
+        match = process.extractOne(clean_name, self.team_list, scorer=fuzz.token_set_ratio, score_cutoff=60)
+        return match[0] if match else None
 
     def predict(self, home, away):
-        # Basit Poisson Modeli (Geliştirilebilir)
-        # Örnekleme amacıyla rastgelelik yerine sabit mantık kullanalım
-        # Gerçek veride burası takımın gücüne göre hesaplanmalı.
+        home_db = self.find_team_cached(home)
+        away_db = self.find_team_cached(away)
         
-        # Simülasyon: İsim uzunluğuna göre güç belirle (Sadece kod çalışsın diye)
-        # SENİN CSV KODUNU BURAYA ENTEGRE EDECEKSİN.
-        h_str = len(home) * 0.15
-        a_str = len(away) * 0.12
+        if not home_db or not away_db: return 0, 0, 0, 0, 0 # Veri yoksa 0 döndür
+            
+        hs = self.team_stats[home_db]
+        as_ = self.team_stats[away_db]
         
-        h_xg = max(0.8, h_str)
-        a_xg = max(0.5, a_str)
-
+        h_xg = hs['att_h'] * as_['def_a'] * self.avg_home_goals
+        a_xg = as_['att_a'] * hs['def_h'] * self.avg_away_goals
+        
         # Poisson
         h_probs = [poisson.pmf(i, h_xg) for i in range(6)]
         a_probs = [poisson.pmf(i, a_xg) for i in range(6)]
         
-        p_1, p_x, p_2, p_over, p_btts = 0, 0, 0, 0, 0
+        p_1, p_x, p_2 = 0, 0, 0
+        p_over, p_btts = 0, 0
         
         for h in range(6):
             for a in range(6):
-                prob = h_probs[h] * a_probs[a]
-                if h > a: p_1 += prob
-                elif h == a: p_x += prob
-                else: p_2 += prob
-                if (h+a) > 2.5: p_over += prob
-                if h > 0 and a > 0: p_btts += prob
+                p = h_probs[h] * a_probs[a]
+                if h > a: p_1 += p
+                elif h == a: p_x += p
+                else: p_2 += p
+                if (h + a) > 2.5: p_over += p
+                if h > 0 and a > 0: p_btts += p
 
         return p_1, p_x, p_2, p_over, p_btts
 
-predictor = PredictorEngine()
+predictor = MatchPredictor()
 
-# --- NESİNE ENTEGRASYONU (WORKER) ---
-def fetch_and_update_data():
-    """Nesine'den veri çeker, tahmin yapar ve veritabanına yazar."""
+# --- ARKA PLAN GÖREVİ (VERİ ÇEKME) ---
+def fetch_live_data():
     with app.app_context():
-        logger.info("🔄 Veri güncelleme başladı...")
-        try:
-            # NOT: Token'ı .env dosyasından almalısın!
-            headers = {
-                "User-Agent": "Mozilla/5.0",
-                "Authorization": "Basic RDQ3MDc4RDMtNjcwQi00OUJBLTgxNUYtM0IyMjI2MTM1MTZCOkI4MzJCQjZGLTQwMjgtNDIwNS05NjFELTg1N0QxRTZEOTk0OA==",
-                "Origin": "https://www.nesine.com"
-            }
-            url = "https://cdnbulten.nesine.com/api/bulten/getprebultenfull"
-            
-            r = requests.get(url, headers=headers, timeout=10)
-            data = r.json()
-            
-            count = 0
-            if "sg" in data and "EA" in data["sg"]:
-                for m in data["sg"]["EA"]:
-                    if m.get("GT") != 1: continue # Sadece Futbol
-                    
-                    match_code = str(m.get("C")) # Maç Kodu
-                    
-                    # Zaten kayıtlı ve bitmişse geç
-                    existing = Match.query.filter_by(code=match_code).first()
-                    if existing and existing.status == "Finished": continue
-
-                    # Oranları Parse Et
-                    odds = {"ms1": "-", "msx": "-", "ms2": "-", "kgvar": "-", "kgyok": "-", "alt": "-", "ust": "-"}
-                    markets = m.get("MA", [])
-                    
-                    for market in markets:
-                        mtid = market.get("MTID")
-                        oca = market.get("OCA", [])
-                        if mtid == 1: # MS
-                            for o in oca:
-                                if o["N"] == 1: odds["ms1"] = o["O"]
-                                elif o["N"] == 2: odds["msx"] = o["O"]
-                                elif o["N"] == 3: odds["ms2"] = o["O"]
-                        elif mtid == 450: # 2.5 Alt/Üst
-                             for o in oca:
-                                 if o["N"] == 1: odds["ust"] = o["O"]
-                                 if o["N"] == 2: odds["alt"] = o["O"]
-                        elif mtid == 17: # KG Var/Yok (ID değişebilir, kontrol et)
-                             for o in oca:
-                                 if o["N"] == 1: odds["kgvar"] = o["O"]
-                                 if o["N"] == 2: odds["kgyok"] = o["O"]
-
-                    if odds["ms1"] == "-": continue # Oranı olmayan maçı alma
-
-                    # Tahmin Yap
-                    p1, px, p2, pover, pbtts = predictor.predict(m.get("HN"), m.get("AN"))
-
-                    # Veritabanı Kaydı
-                    if not existing:
-                        new_match = Match(
-                            code=match_code,
-                            league=m.get("LN"),
-                            home_team=m.get("HN"),
-                            away_team=m.get("AN"),
-                            date=datetime.strptime(f"{m.get('D')} {m.get('T')}", "%d.%m.%Y %H:%M"),
-                            odds=json.dumps(odds),
-                            prob_home=p1, prob_draw=px, prob_away=p2,
-                            prob_over_25=pover, prob_btts=pbtts
-                        )
-                        db.session.add(new_match)
-                        count += 1
-                    else:
-                        # Sadece oranları güncelle (oranlar değişebilir)
-                        existing.odds = json.dumps(odds)
-            
-            db.session.commit()
-            logger.info(f"✅ Güncelleme tamamlandı. {count} yeni maç eklendi.")
-
-        except Exception as e:
-            logger.error(f"❌ Hata: {e}")
-
-# --- SCHEDULER ---
-scheduler = BackgroundScheduler()
-scheduler.add_job(func=fetch_and_update_data, trigger="interval", minutes=5)
-scheduler.start()
-atexit.register(lambda: scheduler.shutdown())
-
-# --- ROUTES ---
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/api/matches')
-def api_matches():
-    # Filtre Parametreleri
-    min_prob = float(request.args.get('min_prob', 0))
-    sort_by = request.args.get('sort_by', 'date')
-    
-    # Henüz oynanmamış veya sonucu girilmemiş maçlar
-    query = Match.query.filter(Match.date >= datetime.now() - timedelta(hours=2))
-    
-    matches = query.all()
-    data = [m.to_dict() for m in matches]
-    
-    # Python tarafında filtreleme (SQLAlchemy ile de yapılabilir ama hızlı çözüm)
-    filtered = []
-    for m in data:
-        # En yüksek ihtimali bul
-        max_p = max(m['probs'].values())
-        if max_p >= min_prob:
-            filtered.append(m)
-            
-    # Sıralama
-    if sort_by == 'prob_home':
-        filtered.sort(key=lambda x: x['probs']['1'], reverse=True)
-    elif sort_by == 'prob_over':
-        filtered.sort(key=lambda x: x['probs']['over'], reverse=True)
-    else: # Date
-        filtered.sort(key=lambda x: x['date'])
-
-    return jsonify(filtered)
-
-@app.route('/api/stats')
-def api_stats():
-    # Basit bir istatistik endpointi
-    total = Match.query.count()
-    finished = Match.query.filter_by(status="Finished").count()
-    successful = Match.query.filter_by(is_successful=True).count()
-    
-    return jsonify({
-        "total_tracked": total,
-        "finished": finished,
-        "successful": successful,
-        "success_rate": round((successful / finished * 100), 2) if finished > 0 else 0
-    })
-
-# İlk kurulum için DB oluştur
-with app.app_context():
-    db.create_all()
-    # İlk veriyi çek (Sunucu başlarken)
-    fetch_and_update_data()
-
-# ... (kodun geri kalanı aynı) ...
-
-if __name__ == '__main__':
-    # Koyeb dinamik port atar, onu yakalamalıyız
-    port = int(os.environ.get("PORT", 8000))
-    app.run(host='0.0.0.0', port=port)
+        # GÜVENLİK: Token .env dosyasından okunur
