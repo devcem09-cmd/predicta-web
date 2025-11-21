@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Geçmiş Tahminler</title>
+<style>
+table {border-collapse: collapse; width: 100%;}
+th, td {border:1px solid #ccc; padding:8px; text-align:center;}
+th {background:#f4f4f4;}
+</style>
+</head>
+<body>
+<h2>Geçmiş Tahminler</h2>
+<table>
+  <thead>
+    <tr>
+      <th>Tarih</th>
+      <th>Lig</th>
+      <th>Ev Sahibi</th>
+      <th>Deplasman</th>
+      <th>MS Tahmin</th>
+      <th>MS Sonuç</th>
+      <th>MS Doğru?</th>
+      <th>Over 2.5 Doğru?</th>
+      <th>BTTS Doğru?</th>
+    </tr>
+  </thead>
+  <tbody id="history-body"></tbody>
+</table>
+
+<script>
+fetch('/api/history')
+.then(res => res.json())
+.then(data => {
+    const tbody = document.getElementById('history-body');
+    data.forEach(m => {
+        const ms_pred = (m.probs['1']>m.probs['2'] && m.probs['1']>m.probs['X'])?'1':(m.probs['2']>m.probs['1'] && m.probs['2']>m.probs['X']?'2':'X');
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td>${m.date}</td>
+            <td>${m.league}</td>
+            <td>${m.home}</td>
+            <td>${m.away}</td>
+            <td>${ms_pred}</td>
+            <td>${m.result.home}-${m.result.away}</td>
+            <td>${m.result.correct_ms?'✅':'❌'}</td>
+            <td>${m.result.correct_over?'✅':'❌'}</td>
+            <td>${m.result.correct_btts?'✅':'❌'}</td>
+        `;
+        tbody.appendChild(row);
+    });
+});
+</script>
+</body>
+</html>
